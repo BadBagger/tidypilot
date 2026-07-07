@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.smithware.mvpstarter"
+    namespace = "com.smithware.tidypilot"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.smithware.mvpstarter"
+        applicationId = "com.smithware.tidypilot"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -63,6 +63,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.0")
     implementation("androidx.room:room-ktx:2.7.2")
     implementation("androidx.room:room-runtime:2.7.2")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     ksp("androidx.room:room-compiler:2.7.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

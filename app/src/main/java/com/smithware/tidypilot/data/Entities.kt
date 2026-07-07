@@ -15,6 +15,7 @@ data class CleaningTaskEntity(
     val description: String = "",
     val priority: String = "normal",
     val estimatedMinutes: Int = 10,
+    val difficulty: String = "easy",
     val energyRequired: String = "low",
     val frequencyType: String = "weekly",
     val preferredTime: String = "anytime",
@@ -38,7 +39,9 @@ data class RoomEntity(
     val tidyScore: Int = 70,
     val priority: String = "normal",
     val defaultTaskIntensity: String = "medium",
+    val defaultTaskFrequency: String = "weekly",
     val notes: String = "",
+    val isArchived: Boolean = false,
     val createdAt: LocalDateTime = LocalDateTime.now(),
     val updatedAt: LocalDateTime = LocalDateTime.now()
 )
@@ -128,9 +131,19 @@ data class ScanIssueEntity(
 data class AppSettingsEntity(
     @PrimaryKey val id: String = "local_settings",
     val defaultCleaningIntensity: String = "gentle",
+    val accentStyle: String = "warm orange",
+    val defaultEnergyLevel: String = "medium",
+    val defaultTaskDurationMinutes: Int = 10,
+    val workdayPlanningBehavior: String = "keep it light",
+    val dayOffPlanningBehavior: String = "allow bigger resets",
     val defaultRecoveryMinutesAfterWork: Int = 45,
-    val reminderEnabled: Boolean = true,
+    val reminderEnabled: Boolean = false,
     val preferredReminderTime: String = "18:30",
+    val quietHoursStart: String = "21:00",
+    val quietHoursEnd: String = "08:00",
+    val lowEnergyReminderMode: String = "gentle",
+    val workdayReminderBehavior: String = "after shift",
+    val dayOffReminderBehavior: String = "morning reset",
     val minimumExhaustedTaskMinutes: Int = 5,
     val savePhotosLocally: Boolean = true,
     val themeMode: String = "system"

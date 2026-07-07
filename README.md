@@ -13,7 +13,7 @@ Tagline: A tidy home plan that works around your real life.
 - Room photo scan flow with local saved photos and a replaceable analyzer abstraction.
 - Photo analysis results with issue tags, tidy score, suggested actions, estimated cleanup time, and feedback.
 - Room management, task detail actions, work schedule, settings, and plain-text reports.
-- Demo rooms, tasks, shifts, and scan results.
+- Starter rooms, tasks, shifts, and scan results.
 - Light, dark, and system theme modes.
 
 ## Privacy
@@ -42,7 +42,7 @@ app\build\outputs\apk\release\app-release.apk
 
 ## Release
 
-Current release target: `v0.1.0-mvp`
+Current release: `v0.1.1-polish`
 
 GitHub repo: `https://github.com/BadBagger/tidypilot`
 

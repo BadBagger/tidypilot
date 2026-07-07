@@ -19,9 +19,9 @@ val SoftClay = Color(0xFFE7C7A8)
 val Ink = Color(0xFF181715)
 
 private val LightColors = lightColorScheme(
-    primary = DeepSage,
-    onPrimary = CleanWhite,
-    secondary = MutedOrange,
+    primary = MutedOrange,
+    onPrimary = Ink,
+    secondary = DeepSage,
     onSecondary = Ink,
     tertiary = Sage,
     background = Cream,
@@ -34,18 +34,18 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Sage,
+    primary = MutedOrange,
     onPrimary = Ink,
-    secondary = MutedOrange,
+    secondary = Sage,
     onSecondary = Ink,
     tertiary = SoftClay,
-    background = Color(0xFF161511),
+    background = Color(0xFF12110F),
     onBackground = Cream,
-    surface = Charcoal,
+    surface = Color(0xFF1F1E1A),
     onSurface = Cream,
-    surfaceVariant = Graphite,
+    surfaceVariant = Color(0xFF2B2A25),
     onSurfaceVariant = Color(0xFFD7CCBC),
-    outline = Color(0xFF928879)
+    outline = Color(0xFF9A8B78)
 )
 
 @Composable

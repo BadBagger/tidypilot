@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.0-mvp`
+- Current release target: `v0.1.1-polish`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -33,7 +33,11 @@ static chore lists fail.
   plain-text export.
 - Settings includes cleaning intensity, recovery minutes, reminders, day-off
   copy, exhausted-day minimum task size, camera/photo privacy, local photo save,
-  theme mode, demo data reset, privacy note, and Smithware Studios about copy.
+  theme mode, starter data reset, privacy note, and Smithware Studios about copy.
+- `TidyPilotSummaryProvider` exposes a read-only, summaries-only chores snapshot
+  for Smithware Central at `content://com.smithware.tidypilot.summary/summary`.
+  It returns counts, due-soon task names, a status line, an optional supportive
+  alert, and no raw notes/photos/history.
 
 ## Privacy
 
@@ -42,9 +46,12 @@ no tracking, no paid API, and no network upload in v1.
 
 ## Build Verification
 
+- `:app:testDebugUnitTest` passed on 2026-07-07 with 6 JVM tests.
 - `:app:assembleDebug` passed on 2026-07-07 with the known local Android
   toolchain.
-- Release verification is expected before publishing `v0.1.0-mvp`.
+- `:app:assembleRelease` passed on 2026-07-07 with the known local Android
+  toolchain.
+- Release `v0.1.1-polish` is published with APK assets.
 
 ## DevHub
 
@@ -54,4 +61,3 @@ After the APK-backed GitHub Release is published, update SoftSmith DevHub:
 - `PROJECT_CONTEXT.md`
 - `android-app/app/src/main/AndroidManifest.xml`
 - `android-app/app/src/main/java/com/softsmith/devhub/MainActivity.java`
-

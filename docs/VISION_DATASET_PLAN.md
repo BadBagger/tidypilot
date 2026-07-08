@@ -122,6 +122,8 @@ on-device model training pipeline.
   and highlights samples needing review.
 - `scripts/build-vision-review-contact-sheet.ps1` creates a local HTML contact
   sheet for reviewing possible label mismatches and unlabeled photos.
+- `scripts/build-vision-label-review.ps1` creates a local CSV with blank reviewer
+  columns so visual review can become durable labels for future training.
 - `scripts/prepare-open-images-sample.ps1` filters Open Images bounding-box
   annotations by vetted household object classes and creates a sample manifest
   plus image-ID list for the official Open Images downloader.
@@ -164,3 +166,9 @@ The first pixel-feature pass is intentionally modest. It measures image quality
 and visual busy-ness from local files so TidyPilot can start comparing scanner
 outputs against repeatable evidence before any TensorFlow Lite or ML Kit model is
 introduced.
+
+Manual review is the next accuracy gate. The generated label review CSV should
+be filled with `clear`, `light_reset`, `moderate_mess`, or `heavy_reset`, plus
+room type and visible issue tags. That reviewed table can later feed a small
+on-device model or a calibrated local heuristic without weakening the app's
+privacy stance.

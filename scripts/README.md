@@ -94,6 +94,17 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-vision-review-contact-s
 This writes an ignored HTML contact sheet under `.local-vision-datasets\review`
 so possible label mismatches can be reviewed without uploading photos anywhere.
 
+## Build a manual label review CSV
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-vision-label-review.ps1
+```
+
+This writes `.local-vision-datasets\review\tidypilot_label_review.csv` with
+blank reviewer columns for mess level, room type, visible issues, and notes.
+Those reviewed labels are the bridge between public datasets and a future
+TidyPilot-specific on-device model.
+
 ## Prepare an Open Images household sample
 
 First fetch public metadata:

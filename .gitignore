@@ -1,7 +1,15 @@
 .gradle/
+.codex-remote-attachments/
 .idea/
 build/
 app/build/
 local.properties
 *.iml
 *.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+*password*
+*credential*

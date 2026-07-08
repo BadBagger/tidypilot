@@ -1,7 +1,29 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+}
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingProperty(name: String): String? = keystoreProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+
+gradle.taskGraph.whenReady {
+    val releaseRequested = allTasks.any { it.name.contains("Release") }
+    if (releaseRequested) {
+        val required = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        val missing = required.filter { signingProperty(it) == null }
+        if (missing.isNotEmpty()) {
+            throw GradleException("Release signing requires local keystore.properties with: ${missing.joinToString(", ")}")
+        }
+    }
 }
 
 android {
@@ -12,18 +34,24 @@ android {
         applicationId = "com.smithware.tidypilot"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1-polish"
+        versionCode = 3
+        versionName = "0.1.2-signed-icon"
     }
 
     signingConfigs {
         getByName("debug")
+        create("release") {
+            signingProperty("storeFile")?.let { storeFile = file(it) }
+            storePassword = signingProperty("storePassword")
+            keyAlias = signingProperty("keyAlias")
+            keyPassword = signingProperty("keyPassword")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -64,6 +92,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.7.2")
     implementation("androidx.room:room-runtime:2.7.2")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
     ksp("androidx.room:room-compiler:2.7.2")
 
     testImplementation("junit:junit:4.13.2")

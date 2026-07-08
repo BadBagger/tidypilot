@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -107,6 +108,8 @@ import com.smithware.tidypilot.data.CleaningTaskEntity
 import com.smithware.tidypilot.data.PlanningEngine
 import com.smithware.tidypilot.data.RoomEntity
 import com.smithware.tidypilot.data.RoomPhotoScanEntity
+import com.smithware.tidypilot.data.ScheduleImportCandidate
+import com.smithware.tidypilot.data.ScheduleImportParser
 import com.smithware.tidypilot.data.ScanIssueEntity
 import com.smithware.tidypilot.data.WorkShiftEntity
 import com.smithware.tidypilot.data.calculateRoomScore
@@ -117,6 +120,9 @@ import com.smithware.tidypilot.ui.theme.Graphite
 import com.smithware.tidypilot.ui.theme.MutedOrange
 import com.smithware.tidypilot.ui.theme.Sage
 import com.smithware.tidypilot.ui.theme.TidyPilotTheme
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
 import java.time.Duration
 import java.time.LocalDate
@@ -220,6 +226,9 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
         NavHost(navController = nav, startDestination = Route.Dashboard.value, modifier = Modifier.padding(padding)) {
             composable(Route.Dashboard.value) { DashboardScreen(state, viewModel, nav) }
             composable(Route.Add.value) { AddEditScreen(state, viewModel, snackbar) }
+            composable("editTask/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                AddEditScreen(state, viewModel, snackbar, initialTaskId = entry.arguments?.getString("id"))
+            }
             composable(Route.Rooms.value) { RoomManagementScreen(state, viewModel, snackbar, nav) }
             composable(Route.Reports.value) { ReportsScreen(state, nav, viewModel, snackbar) }
             composable(Route.Settings.value) { SettingsScreen(state, viewModel) }
@@ -233,7 +242,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
                 if (type == "room") {
                     RoomDetailScreen(id, state, nav)
                 } else {
-                    DetailScreen(type, id, state, viewModel, nav)
+                    DetailScreen(type, id, state, viewModel, nav, snackbar)
                 }
             }
         }
@@ -791,10 +800,10 @@ private fun QuickActions(onExhausted: () -> Unit, onTen: () -> Unit, onMore: () 
 }
 
 @Composable
-private fun AddEditScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, snackbar: SnackbarHostState) {
+private fun AddEditScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, snackbar: SnackbarHostState, initialTaskId: String? = null) {
     val scope = rememberCoroutineScope()
     var mode by rememberSaveable { mutableStateOf("task") }
-    var editingTask by remember { mutableStateOf<CleaningTaskEntity?>(null) }
+    var editingTask by remember(initialTaskId, state.tasks) { mutableStateOf(state.tasks.firstOrNull { it.id == initialTaskId }) }
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionHeader("Add/Edit", "Create cleaning tasks, rooms, and work shifts.") }
         item {
@@ -1230,6 +1239,7 @@ private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
     val today = LocalDate.now()
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionHeader("Work Schedule", "TidyPilot plans around shifts, days off, and recovery time.") }
+        item { SchedulePhotoImportCard(viewModel, snackbar) }
         if (state.shifts.isEmpty()) {
             item { EmptyState("No shifts added.", "Add your schedule so TidyPilot can plan around work.") }
         }
@@ -1250,6 +1260,156 @@ private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
             )
         }
         item { ShiftForm(viewModel, snackbar, editingShift) { editingShift = null } }
+    }
+}
+
+@Composable
+private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: SnackbarHostState) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pendingUri by remember { mutableStateOf<Uri?>(null) }
+    var isReading by rememberSaveable { mutableStateOf(false) }
+    var rawText by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf("Photos stay on this device. Review before saving.") }
+    var candidates by remember { mutableStateOf<List<ScheduleImportCandidate>>(emptyList()) }
+
+    fun updateImportText(text: String) {
+        rawText = text
+        candidates = ScheduleImportParser.parse(text)
+        message = if (candidates.isEmpty()) {
+            "No shifts found yet. Edit the text below or add shifts manually."
+        } else {
+            "${candidates.size} possible shift${if (candidates.size == 1) "" else "s"} found. Review before saving."
+        }
+    }
+
+    fun readScheduleImage(uri: Uri) {
+        isReading = true
+        message = "Reading schedule image locally..."
+        runCatching { InputImage.fromFilePath(context, uri) }
+            .onSuccess { image ->
+                TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    .process(image)
+                    .addOnSuccessListener { recognized ->
+                        isReading = false
+                        updateImportText(recognized.text)
+                    }
+                    .addOnFailureListener {
+                        isReading = false
+                        message = "Could not read that image. You can select another photo or add shifts manually."
+                    }
+            }
+            .onFailure {
+                isReading = false
+                message = "Could not open that image. Try selecting a screenshot instead."
+            }
+    }
+
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val uri = pendingUri
+        if (ok && uri != null) {
+            readScheduleImage(uri)
+        } else {
+            scope.launch { snackbar.showSnackbar("Schedule photo was not saved.") }
+        }
+    }
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            pendingUri = uri
+            readScheduleImage(uri)
+        } else {
+            scope.launch { snackbar.showSnackbar("No schedule image selected.") }
+        }
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            runCatching {
+                val uri = createImageUri(context)
+                pendingUri = uri
+                takePicture.launch(uri)
+            }.onFailure {
+                scope.launch { snackbar.showSnackbar("Could not open camera. Try selecting a screenshot.") }
+            }
+        } else {
+            scope.launch { snackbar.showSnackbar("Camera permission is only used for local schedule import.") }
+        }
+    }
+
+    StudioCard {
+        Text("Import schedule photo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+        Text("Use a schedule screenshot or photo to draft shifts. OCR runs on this device, and nothing is saved until you confirm.")
+        Text("Photos stay on this device.", color = Sage, fontWeight = FontWeight.Black)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { permission.launch(Manifest.permission.CAMERA) }, enabled = !isReading, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.CameraAlt, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Take photo")
+            }
+            FilledTonalButton(onClick = { pickPhoto.launch("image/*") }, enabled = !isReading, modifier = Modifier.weight(1f)) {
+                Text("Select image")
+            }
+        }
+        if (isReading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (rawText.isNotBlank()) {
+            OutlinedTextField(
+                value = rawText,
+                onValueChange = ::updateImportText,
+                label = { Text("Recognized schedule text") },
+                minLines = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        if (candidates.isNotEmpty()) {
+            Text("Preview shifts", fontWeight = FontWeight.SemiBold)
+            candidates.take(5).forEach { candidate ->
+                ScheduleImportCandidateRow(candidate) {
+                    candidates = candidates.filterNot { it == candidate }
+                }
+            }
+            if (candidates.size > 5) Text("${candidates.size - 5} more shifts will be saved.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(
+                onClick = {
+                    viewModel.saveShifts(
+                        candidates.map {
+                            WorkShiftEntity(
+                                date = it.date,
+                                startTime = it.startTime,
+                                endTime = it.endTime,
+                                label = it.label,
+                                expectedExhaustionLevel = it.expectedExhaustionLevel,
+                                notes = "Imported from schedule photo. Review confidence: ${it.confidenceLabel}. Source: ${it.sourceLine}"
+                            )
+                        }
+                    )
+                    scope.launch { snackbar.showSnackbar("${candidates.size} imported shift${if (candidates.size == 1) "" else "s"} saved.") }
+                    rawText = ""
+                    candidates = emptyList()
+                    message = "Import saved. Photos stay on this device."
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Confirm imported shifts")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleImportCandidateRow(candidate: ScheduleImportCandidate, onIgnore: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("${candidate.date} - ${candidate.startTime} to ${candidate.endTime}", fontWeight = FontWeight.Black)
+                    Text("${candidate.label} - expected ${candidate.expectedExhaustionLevel} exhaustion", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Confidence: ${candidate.confidenceLabel}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = onIgnore) { Text("Ignore") }
+            }
+        }
     }
 }
 
@@ -1388,7 +1548,11 @@ private fun RoomPhotoScanScreen(state: TidyPilotState, viewModel: TidyPilotViewM
                 }
                 FilledTonalButton(
                     onClick = {
-                        val room = selectedRoom ?: return@FilledTonalButton
+                        val room = selectedRoom
+                        if (room == null) {
+                            scope.launch { snackbar.showSnackbar("Add or choose a room before running a sample scan.") }
+                            return@FilledTonalButton
+                        }
                         startLocalScan(room, Uri.parse("sample://${room.name}/${System.currentTimeMillis()}"), note.ifBlank { "manual scan" })
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -1639,9 +1803,18 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                 )
                 Text("Was the analysis helpful?", fontWeight = FontWeight.Bold)
                 WrapButtons(
-                    "Accurate" to { viewModel.setScanFeedback(scan.id, "accurate") },
-                    "Partly accurate" to { viewModel.setScanFeedback(scan.id, "partly accurate") },
-                    "Inaccurate" to { viewModel.setScanFeedback(scan.id, "inaccurate") }
+                    "Accurate" to {
+                        viewModel.setScanFeedback(scan.id, "accurate")
+                        scope.launch { snackbar.showSnackbar("Feedback saved.") }
+                    },
+                    "Partly accurate" to {
+                        viewModel.setScanFeedback(scan.id, "partly accurate")
+                        scope.launch { snackbar.showSnackbar("Feedback saved.") }
+                    },
+                    "Inaccurate" to {
+                        viewModel.setScanFeedback(scan.id, "inaccurate")
+                        scope.launch { snackbar.showSnackbar("Feedback saved.") }
+                    }
                 )
             }
         }
@@ -1813,7 +1986,8 @@ private fun RoomDetailScreen(id: String, state: TidyPilotState, nav: NavHostCont
 }
 
 @Composable
-private fun DetailScreen(type: String, id: String, state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController) {
+private fun DetailScreen(type: String, id: String, state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController, snackbar: SnackbarHostState) {
+    val scope = rememberCoroutineScope()
     val task = state.tasks.firstOrNull { it.id == id }
     val scan = state.scans.firstOrNull { it.id == id }
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1831,8 +2005,11 @@ private fun DetailScreen(type: String, id: String, state: TidyPilotState, viewMo
                         if (task.description.isNotBlank()) Text(task.description)
                         WrapButtons(
                             "Mark complete" to { viewModel.markComplete(task); nav.navigate(Route.Dashboard.value) },
-                            "Snooze" to { viewModel.snoozeTask(task) },
-                            "Edit" to { nav.navigate(Route.Add.value) },
+                            "Snooze" to {
+                                viewModel.snoozeTask(task)
+                                scope.launch { snackbar.showSnackbar("Task snoozed.") }
+                            },
+                            "Edit" to { nav.navigate("editTask/${task.id}") },
                             "Delete" to { viewModel.deleteTask(task); nav.navigate(Route.Dashboard.value) }
                         )
                     }
@@ -1846,7 +2023,10 @@ private fun DetailScreen(type: String, id: String, state: TidyPilotState, viewMo
                         Text("Suggested quick reset: ${state.issues.firstOrNull { it.scanId == scan.id && it.energyLevel == "low" }?.suggestedAction ?: "Set a 5-minute timer"}")
                         Text("Suggested deep reset: ${state.issues.filter { it.scanId == scan.id }.maxByOrNull { it.estimatedMinutes }?.suggestedAction ?: "Reset the room"}")
                         Text("Feedback: ${scan.userFeedback.ifBlank { "not rated" }}")
-                        Button(onClick = { viewModel.addTasksFromScan(scan) }) { Text("Add tasks from scan") }
+                        Button(onClick = {
+                            viewModel.addTasksFromScan(scan)
+                            scope.launch { snackbar.showSnackbar("Scan tasks added.") }
+                        }) { Text("Add tasks from scan") }
                     }
                 }
             }
@@ -2289,28 +2469,13 @@ private fun TaskRow(task: CleaningTaskEntity, state: TidyPilotState, viewModel: 
 
 @Composable
 private fun BrandMark(modifier: Modifier = Modifier) {
-    Box(
+    Image(
+        painter = painterResource(id = R.drawable.tidypilot_icon),
+        contentDescription = "TidyPilot",
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Charcoal),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.linearGradient(listOf(Charcoal, Graphite)))
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(7.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Box(Modifier.fillMaxWidth().height(4.dp).background(MutedOrange, RoundedCornerShape(8.dp)))
-            Box(Modifier.fillMaxWidth(0.68f).height(4.dp).background(Cream, RoundedCornerShape(8.dp)))
-            Box(Modifier.fillMaxWidth(0.46f).height(4.dp).background(Sage, RoundedCornerShape(8.dp)))
-        }
-    }
+            .clip(RoundedCornerShape(8.dp)),
+        contentScale = ContentScale.Fit
+    )
 }
 
 @Composable

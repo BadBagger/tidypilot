@@ -445,6 +445,13 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
         }
         if ("laundry" in lower || "clothes" in lower) add("laundry_visible", "Laundry visible", "Start one laundry load", 7, "low", 0.66f)
         if ("trash" in lower) add("trash_visible", "Trash visible", "Take trash to one bag", 3, "low", 0.64f)
+        if (lower.hasAny("floor path blocked", "blocked path", "blocked floor", "walking path blocked")) {
+            add("floor_clutter", "Floor path blocked", "Clear one walking path", 8, "low", 0.72f)
+        }
+        if (lower.hasAny("lots of clutter", "piles visible", "piles", "object piles", "stuff everywhere")) {
+            add("general_reset_needed", "Visible clutter piles", "Sort one visible pile", 8, "low", 0.68f)
+            add("cluttered_surface", "Cluttered surface or pile", "Clear one surface or pile", 6, "low", 0.62f)
+        }
         if ("floor" in lower || issues.isEmpty()) {
             add("floor_clutter", "Floor clutter", "Pick up one visible area", 6, "low", 0.6f)
             add("general_reset_needed", "General room reset", "Set a 5-minute timer", 5, "low", 0.57f)
@@ -452,26 +459,39 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
         val distinct = issues.distinctBy { it.tag }.take(8)
         val estimated = distinct.sumOf { it.estimatedMinutes }.coerceAtMost(60)
         val weightedIssueMess = distinct.sumOf { it.messWeight() }
+        val clearMessReduction = when {
+            lower.hasAny("mostly clear", "looks mostly clear", "open floor", "clear floor", "clear counters", "clean room") -> 28
+            lower.hasAny("quick reset", "light reset", "lightly messy") -> 12
+            else -> 0
+        }
         val severityMess = when {
-            lower.hasAny("trashed", "disaster", "super untidy", "very messy", "rough", "bad", "overwhelming") -> 42
-            lower.hasAny("messy", "untidy", "cluttered", "needs bigger reset", "needs reset") -> 28
-            lower.hasAny("floor clutter", "laundry visible", "trash visible", "sink full", "full sink", "overloaded sink", "pile", "blocked", "shelves cluttered") -> 18
+            lower.hasAny("trashed", "disaster", "super untidy", "very messy", "rough", "overwhelming", "stuff everywhere", "can't walk") -> 52
+            lower.hasAny("moderate mess", "messy", "untidy", "cluttered", "needs bigger reset", "needs reset", "lots of clutter", "piles visible") -> 36
+            lower.hasAny("floor clutter", "clothes on floor", "laundry visible", "trash visible", "sink full", "full sink", "overloaded sink", "pile", "blocked", "floor path blocked", "shelves cluttered") -> 24
+            else -> 0
+        }
+        val issueCountMess = when {
+            distinct.size >= 6 -> 18
+            distinct.size >= 4 -> 10
+            distinct.size >= 2 -> 4
             else -> 0
         }
         val existingRoomMess = (100 - room.tidyScore).coerceIn(0, 55)
         val unknownPhotoMessFloor = when {
-            userProvidedContext -> 20
-            lower.hasAny("bed", "basement", "storage", "garage", "laundry") -> 48
-            else -> 42
+            userProvidedContext -> 18
+            lower.hasAny("basement", "storage", "garage") -> 68
+            lower.hasAny("bed", "kids room", "guest bedroom", "laundry") -> 62
+            lower.hasAny("bath", "kitchen", "living", "family room", "office") -> 56
+            else -> 50
         }
         val contextMess = when {
-            "basement" in lower && ("super untidy" in lower || "rough" in lower || "bad" in lower || "needs reset" in lower) -> 38
+            "basement" in lower && ("super untidy" in lower || "rough" in lower || "bad" in lower || "needs reset" in lower || "very messy" in lower) -> 46
             "basement" in lower || "storage" in lower || "garage" in lower -> 28
-            "rough" in lower || "needs reset" in lower -> 15
+            "rough" in lower || "needs reset" in lower || "moderate mess" in lower -> 20
             else -> 0
         }
-        val rawMess = maxOf(weightedIssueMess + contextMess + severityMess, existingRoomMess, unknownPhotoMessFloor)
-        val mess = rawMess.coerceIn(20, 92)
+        val rawMess = maxOf(weightedIssueMess + contextMess + severityMess + issueCountMess - clearMessReduction, existingRoomMess, unknownPhotoMessFloor - clearMessReduction)
+        val mess = rawMess.coerceIn(if (clearMessReduction > 0) 18 else 25, 96)
         val messLevel = messLevelForScore(mess)
         val confidence = scanConfidenceFor(userProvidedContext, distinct.size, lower)
         val detectedZones = detectedZonesFor(lower, distinct, messLevel)

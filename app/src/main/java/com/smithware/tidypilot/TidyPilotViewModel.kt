@@ -14,6 +14,7 @@ import com.smithware.tidypilot.data.RoomEntity
 import com.smithware.tidypilot.data.RoomPhotoAnalyzer
 import com.smithware.tidypilot.data.RoomPhotoScanEntity
 import com.smithware.tidypilot.data.ScanIssueEntity
+import com.smithware.tidypilot.data.StarterRoutineProfile
 import com.smithware.tidypilot.data.TaskCompletionEntity
 import com.smithware.tidypilot.data.TidyPilotDatabase
 import com.smithware.tidypilot.data.TidyPilotRepository
@@ -334,7 +335,7 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun completeOnboarding(starterRooms: Set<String>, reminders: Boolean) {
+    fun completeOnboarding(starterRooms: Set<String>, reminders: Boolean, applyStarterRoutine: Boolean = true, starterProfile: StarterRoutineProfile = StarterRoutineProfile(selectedRooms = starterRooms)) {
         viewModelScope.launch {
             val selected = starterRooms.map { it.lowercase() }.toSet()
             state.value.rooms.forEach { room ->
@@ -349,9 +350,17 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 )
             }
+            if (applyStarterRoutine) repository.applyStarterRoutine(starterProfile)
             repository.updateSettings(state.value.settings.copy(reminderEnabled = reminders))
             preferences.setRemindersEnabled(reminders)
             preferences.setOnboardingComplete(true)
+            replan()
+        }
+    }
+
+    fun applyStarterRoutine(profile: StarterRoutineProfile = StarterRoutineProfile()) {
+        viewModelScope.launch {
+            repository.applyStarterRoutine(profile)
             replan()
         }
     }

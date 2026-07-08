@@ -105,6 +105,54 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
         RoomEntity(name = "Basement", roomType = "Basement", iconName = "basement", tidyScore = 42, priority = "high", defaultTaskIntensity = "medium", defaultTaskFrequency = "weekly", notes = "Storage shelves, floor paths, cords, gear, and bigger reset projects.")
     )
 
+    suspend fun applyStarterRoutine(profile: StarterRoutineProfile = StarterRoutineProfile()): Int {
+        ensureStarterRooms(profile)
+        val eligibleRoomNames = starterRoomsFor(profile).map { it.name.lowercase() }.toSet()
+        val rooms = dao.activeRoomsOnce()
+        val existingKeys = dao.activeTaskRoomKeys().toMutableSet()
+        val today = LocalDate.now()
+        var created = 0
+
+        starterRoutineTemplates(profile).forEach { template ->
+            val matchingRooms = rooms.filter { it.name.lowercase() in eligibleRoomNames && it.matchesStarterRoom(template.roomType) }
+            matchingRooms.forEach { room ->
+                val key = "${template.name.lowercase()}|${room.id}"
+                if (key !in existingKeys) {
+                    dao.saveTask(
+                        CleaningTaskEntity(
+                            name = template.name,
+                            roomId = room.id,
+                            description = template.description,
+                            priority = template.priority,
+                            estimatedMinutes = template.estimatedMinutes,
+                            difficulty = template.difficulty,
+                            energyRequired = template.energyRequired,
+                            frequencyType = template.frequencyType,
+                            preferredTime = template.preferredTime,
+                            isQuickResetTask = template.quickReset,
+                            isDeepCleanTask = template.deepClean,
+                            photoDetectableCategory = template.category,
+                            nextDueAt = today.plusDays(template.startOffsetDays)
+                        )
+                    )
+                    existingKeys += key
+                    created++
+                }
+            }
+        }
+        return created
+    }
+
+    private suspend fun ensureStarterRooms(profile: StarterRoutineProfile) {
+        val existing = dao.roomNames().map { it.lowercase() }.toMutableSet()
+        starterRoomsFor(profile).forEach { room ->
+            if (room.name.lowercase() !in existing) {
+                dao.saveRoom(room)
+                existing += room.name.lowercase()
+            }
+        }
+    }
+
     suspend fun resetDemoData() {
         dao.clearScanIssues()
         dao.clearScans()
@@ -215,5 +263,111 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
         "weekly" -> today.plusWeeks(1)
         "monthly" -> today.plusMonths(1)
         else -> today.plusWeeks(1)
+    }
+}
+
+data class StarterRoutineProfile(
+    val selectedRooms: Set<String> = setOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry"),
+    val bedroomCount: Int = 1,
+    val bathroomCount: Int = 1,
+    val householdType: String = "just me",
+    val goals: Set<String> = setOf("basic routine"),
+    val delegationInterest: Boolean = false
+)
+
+internal data class StarterRoutineTemplate(
+    val name: String,
+    val roomType: String,
+    val description: String,
+    val priority: String,
+    val estimatedMinutes: Int,
+    val difficulty: String,
+    val energyRequired: String,
+    val frequencyType: String,
+    val preferredTime: String,
+    val category: String,
+    val quickReset: Boolean = true,
+    val deepClean: Boolean = false,
+    val startOffsetDays: Long = 0
+)
+
+internal fun starterRoutineTemplates(profile: StarterRoutineProfile): List<StarterRoutineTemplate> {
+    val goals = profile.goals.map { it.lowercase() }.toSet()
+    val wantsDelegation = profile.delegationInterest || profile.householdType.contains("family", ignoreCase = true)
+    val base = mutableListOf(
+    StarterRoutineTemplate("Load dishwasher", "Kitchen", "Put visible dishes into the dishwasher or sink. Good enough counts.", "high", 10, "medium", "medium", "daily", "after work", "dishes"),
+    StarterRoutineTemplate("Clear kitchen counters", "Kitchen", "Clear one useful counter section first.", "high", 5, "easy", "low", "daily", "anytime", "clutter"),
+    StarterRoutineTemplate("Take out kitchen trash", "Kitchen", "Tie one bag and move it out.", "normal", 3, "easy", "low", "every few days", "before work", "trash", startOffsetDays = 1),
+    StarterRoutineTemplate("Sweep kitchen floor", "Kitchen", "Sweep the main walking path after counters or dishes feel handled.", "normal", 10, "medium", "medium", "weekly", "day off", "floor clutter", quickReset = false, startOffsetDays = 2),
+    StarterRoutineTemplate("Wipe bathroom sink", "Bathroom", "Wipe the faucet and sink area.", "normal", 5, "easy", "low", "every few days", "before work", "bathroom reset", startOffsetDays = 1),
+    StarterRoutineTemplate("Quick bathroom reset", "Bathroom", "Reset the sink, towel, and visible counter area.", "normal", 8, "medium", "medium", "weekly", "day off", "bathroom reset", startOffsetDays = 3),
+    StarterRoutineTemplate("Gather bathroom towels", "Bathroom", "Collect towels into one hamper or laundry basket.", "normal", 6, "easy", "low", "weekly", "day off", "laundry", startOffsetDays = 3),
+    StarterRoutineTemplate("Make bed", "Bedroom", "Straighten the bed enough to make the room feel reset.", "normal", 3, "easy", "low", "daily", "anytime", "bed reset"),
+    StarterRoutineTemplate("Put laundry in hamper", "Bedroom", "Pick up clothes from one visible area.", "high", 5, "easy", "low", "daily", "after work", "laundry"),
+    StarterRoutineTemplate("Reset nightstand", "Bedroom", "Clear cups, wrappers, or small loose items from the bedside table.", "normal", 5, "easy", "low", "weekly", "anytime", "clutter", startOffsetDays = 1),
+    StarterRoutineTemplate("Pick up bedroom floor", "Bedroom", "Clear the main floor path first.", "normal", 10, "medium", "medium", "every few days", "day off", "floor clutter", quickReset = false, startOffsetDays = 2),
+    StarterRoutineTemplate("10-minute living room reset", "Living Room", "Set a timer and put visible clutter back where it belongs.", "normal", 10, "medium", "medium", "daily", "anytime", "floor clutter"),
+    StarterRoutineTemplate("Clear coffee table", "Living Room", "Clear one table or main surface.", "normal", 5, "easy", "low", "every few days", "anytime", "clutter", startOffsetDays = 1),
+    StarterRoutineTemplate("Vacuum living room rug", "Living Room", "Vacuum after the floor path is mostly clear.", "low", 15, "medium", "medium", "weekly", "day off", "floor clutter", quickReset = false, startOffsetDays = 4),
+    StarterRoutineTemplate("Start laundry", "Laundry", "Start one practical load. Do not sort the whole backlog first.", "normal", 7, "easy", "low", "every few days", "anytime", "laundry", startOffsetDays = 1),
+    StarterRoutineTemplate("Switch laundry", "Laundry", "Move one load to the dryer or drying area.", "normal", 5, "easy", "low", "every few days", "anytime", "laundry", startOffsetDays = 1),
+    StarterRoutineTemplate("Fold one basket", "Laundry", "Fold one basket or one small pile.", "normal", 15, "medium", "medium", "every few days", "day off", "laundry", startOffsetDays = 2)
+    )
+
+    if ("catch up from mess" in goals) {
+        base += StarterRoutineTemplate("Sort one visible pile", "Living Room", "Pick one pile and sort only that pile.", "high", 10, "easy", "low", "every few days", "anytime", "clutter", startOffsetDays = 1)
+        base += StarterRoutineTemplate("Clear one bedroom floor path", "Bedroom", "Make one walking path easier to use.", "high", 8, "easy", "low", "every few days", "anytime", "floor clutter", startOffsetDays = 1)
+    }
+    if ("guest ready" in goals) {
+        base += StarterRoutineTemplate("Entryway reset", "Entryway", "Put shoes, bags, and mail into one calmer landing spot.", "normal", 8, "easy", "low", "every few days", "before work", "clutter", startOffsetDays = 1)
+        base += StarterRoutineTemplate("Guest bathroom touch-up", "Bathroom", "Reset the sink, mirror, towel, and trash.", "normal", 10, "medium", "medium", "weekly", "day off", "bathroom reset", startOffsetDays = 2)
+    }
+    if ("low energy maintenance" in goals) {
+        base += StarterRoutineTemplate("Five-minute reset basket", "Living Room", "Put loose items into one basket and stop there if that is enough.", "normal", 5, "easy", "low", "daily", "anytime", "clutter")
+    }
+    if (wantsDelegation) {
+        base += StarterRoutineTemplate("Kid-friendly toy pickup", "Kids Room", "Put toys or loose items into one bin. Easy to assign later.", "normal", 5, "easy", "low", "daily", "anytime", "clutter")
+        base += StarterRoutineTemplate("Shared table reset", "Living Room", "Clear one shared surface. Good household assignment candidate.", "normal", 5, "easy", "low", "every few days", "anytime", "clutter", startOffsetDays = 1)
+    }
+    return base
+}
+
+internal fun starterRoomsFor(profile: StarterRoutineProfile): List<RoomEntity> {
+    val selected = profile.selectedRooms.ifEmpty { setOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry") }
+    val rooms = mutableListOf<RoomEntity>()
+    selected.filterNot { it.equals("Bedroom", true) || it.equals("Bathroom", true) }.forEach { rooms += starterRoomForName(it) }
+    val bedroomTotal = if (selected.any { it.equals("Bedroom", true) }) profile.bedroomCount.coerceIn(1, 6) else 0
+    val bathroomTotal = if (selected.any { it.equals("Bathroom", true) }) profile.bathroomCount.coerceIn(1, 5) else 0
+    repeat(bedroomTotal) { index -> rooms += starterRoomForName(if (index == 0) "Bedroom" else "Bedroom ${index + 1}") }
+    repeat(bathroomTotal) { index -> rooms += starterRoomForName(if (index == 0) "Bathroom" else "Bathroom ${index + 1}") }
+    return rooms.distinctBy { it.name.lowercase() }
+}
+
+private fun starterRoomForName(name: String): RoomEntity {
+    val lower = name.lowercase()
+    return when {
+        lower.contains("kitchen") -> RoomEntity(name = name, roomType = "Kitchen", iconName = "kitchen", tidyScore = 62, priority = "high", defaultTaskFrequency = "daily", notes = "Dishes, counters, trash, and quick food-area resets.")
+        lower.contains("bath") -> RoomEntity(name = name, roomType = "Bathroom", iconName = "bath", tidyScore = 68, priority = "normal", notes = "Sink, towels, mirror, trash, and small wipe-downs.")
+        lower.contains("bed") -> RoomEntity(name = name, roomType = "Bedroom", iconName = "bed", tidyScore = 64, priority = "high", notes = "Laundry, bed reset, nightstand, and floor path.")
+        lower.contains("living") -> RoomEntity(name = name, roomType = "Living Room", iconName = "sofa", tidyScore = 72, priority = "normal", notes = "Shared clutter reset, surfaces, and vacuuming.")
+        lower.contains("laundry") -> RoomEntity(name = name, roomType = "Laundry", iconName = "laundry", tidyScore = 66, priority = "normal", defaultTaskFrequency = "every few days", notes = "Start, switch, and fold one practical load.")
+        lower.contains("entry") -> RoomEntity(name = name, roomType = "Entryway", iconName = "entry", tidyScore = 70, priority = "normal", notes = "Shoes, bags, coats, and mail landing zone.")
+        lower.contains("basement") -> RoomEntity(name = name, roomType = "Basement", iconName = "basement", tidyScore = 48, priority = "high", defaultTaskIntensity = "medium", notes = "Storage, floor paths, shelves, cords, and bigger reset projects.")
+        lower.contains("garage") -> RoomEntity(name = name, roomType = "Garage", iconName = "garage", tidyScore = 55, priority = "normal", notes = "Floor paths, tools, boxes, and seasonal storage.")
+        lower.contains("office") -> RoomEntity(name = name, roomType = "Office", iconName = "office", tidyScore = 68, priority = "normal", notes = "Desk surface, papers, cords, and floor clutter.")
+        lower.contains("kid") || lower.contains("play") -> RoomEntity(name = name, roomType = "Kids Room", iconName = "kids", tidyScore = 62, priority = "normal", notes = "Toy bins, laundry, floor paths, and easy delegation candidates.")
+        else -> RoomEntity(name = name, roomType = name, iconName = "room", tidyScore = 68, priority = "normal", notes = "Starter room added during setup.")
+    }
+}
+
+private fun RoomEntity.matchesStarterRoom(templateRoomType: String): Boolean {
+    val target = templateRoomType.lowercase()
+    val roomText = "$name $roomType".lowercase()
+    return when (target) {
+        "bedroom" -> roomText.contains("bedroom") || roomText.contains("guest bedroom")
+        "bathroom" -> roomText.contains("bathroom") || roomText.contains("bath")
+        "living room" -> roomText.contains("living room") || roomText.contains("family room")
+        "kids room" -> roomText.contains("kids room") || roomText.contains("playroom")
+        else -> roomText.contains(target)
     }
 }

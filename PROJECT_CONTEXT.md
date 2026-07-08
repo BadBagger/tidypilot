@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.9-nav-shift-fix`
+- Current release target: `v0.1.10-household-onboarding`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -22,10 +22,13 @@ static chore lists fail.
   fallback, and reset plan action.
 - Add/Edit supports cleaning tasks, rooms, and work shifts.
 - Detail supports task actions and photo scan detail.
+- Onboarding collects a lightweight household profile with rooms, bedroom and
+  bathroom counts, household type, goals, delegation interest, reminder
+  preference, and a profile-aware starter routine.
 - Room Photo Scan saves local photos through a FileProvider and runs a local v1
   analyzer abstraction with mess-level detection, confidence labels, detected
-  zones, photo quality guidance, review controls, and task creation from scan
-  issues.
+  zones, photo quality guidance, review controls, not-accurate feedback, and
+  task creation from scan issues.
 - Photo Analysis Results shows mess level, tidy score, mess score, detected
   issue cards, suggested actions, estimated cleanup time, energy recommendation,
   feedback, and add-to-plan actions.
@@ -50,15 +53,15 @@ no tracking, no paid API, and no network upload in v1.
 
 ## Build Verification
 
-- `:app:testDebugUnitTest` passed on 2026-07-07 with scanner, room score,
-  planning, and online-reference scanner fixture tests.
-- `:app:assembleDebug` passed on 2026-07-07 with the known local Android
+- `:app:testDebugUnitTest` passed on 2026-07-08 with scanner, room score,
+  planning, starter routine profile, and online-reference scanner fixture tests.
+- `:app:assembleDebug` passed on 2026-07-08 with the known local Android
   toolchain.
-- `:app:assembleRelease` passed on 2026-07-07 with the known local Android
+- `:app:assembleRelease` passed on 2026-07-08 with the known local Android
   toolchain.
-- Release `v0.1.9-nav-shift-fix` is the current release target. It fixes the
-  Today bottom navigation path, makes shift editing visibly open near the top of
-  Work Schedule, and adds quick expected-exhaustion chips on saved shifts.
+- Release `v0.1.10-household-onboarding` is the current release target. It adds
+  household-aware onboarding, profile-based starter routines, stronger local scan
+  mess cues, and clearer scan summary review controls.
 
 ## DevHub
 

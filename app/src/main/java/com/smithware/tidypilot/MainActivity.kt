@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bed
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CameraAlt
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.RoomPreferences
@@ -117,6 +119,7 @@ import com.smithware.tidypilot.data.ScheduleImportGuidance
 import com.smithware.tidypilot.data.ScheduleImportGuidanceClassifier
 import com.smithware.tidypilot.data.ScheduleImportParser
 import com.smithware.tidypilot.data.ScanIssueEntity
+import com.smithware.tidypilot.data.StarterRoutineProfile
 import com.smithware.tidypilot.data.WorkShiftEntity
 import com.smithware.tidypilot.data.calculateRoomScore
 import com.smithware.tidypilot.data.unpipe
@@ -300,6 +303,13 @@ private fun OnboardingScreen(
     var starterRooms by remember {
         mutableStateOf(setOf("Kitchen", "Bathroom", "Bedroom", "Living Room"))
     }
+    var bedroomCount by rememberSaveable { mutableStateOf(1) }
+    var bathroomCount by rememberSaveable { mutableStateOf(1) }
+    var householdType by rememberSaveable { mutableStateOf("Just me") }
+    var delegationInterest by rememberSaveable { mutableStateOf(false) }
+    var goals by remember {
+        mutableStateOf(setOf("Basic routine"))
+    }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         reminders = granted
         permissionNote = if (granted) {
@@ -338,10 +348,34 @@ private fun OnboardingScreen(
         if (setupPage) {
             item {
                 StudioCard {
-                    Text("Choose starter rooms", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                    Text("Pick the rooms you want TidyPilot to prioritize first. You can change rooms later.")
-                    StarterRoomChips(state.rooms.map { it.name }.ifEmpty { defaultStarterRooms }, starterRooms) { room ->
+                    Text("Tell TidyPilot about your home", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text("This shapes the starter routine so you are not stuck building everything manually.")
+                    CountStepper("Bedrooms", bedroomCount, 1, 6) { bedroomCount = it }
+                    CountStepper("Bathrooms", bathroomCount, 1, 5) { bathroomCount = it }
+                }
+            }
+            item {
+                StudioCard {
+                    Text("Rooms you want included", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text("Pick the rooms that matter now. You can add custom rooms later.")
+                    StarterRoomChips(onboardingRoomOptions, starterRooms) { room ->
                         starterRooms = if (room in starterRooms) starterRooms - room else starterRooms + room
+                    }
+                }
+            }
+            item {
+                StudioCard {
+                    Text("Household", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    OptionChips(listOf("Just me", "Partner / roommate", "Family with kids"), householdType) { householdType = it }
+                    PreferenceRow("Interested in chore delegation", "TidyPilot will mark a few simple tasks as easy to assign later.", delegationInterest) { delegationInterest = it }
+                }
+            }
+            item {
+                StudioCard {
+                    Text("Main goals", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text("Choose what you want help with first.")
+                    StarterGoalChips(onboardingGoalOptions, goals) { goal ->
+                        goals = if (goal in goals && goals.size > 1) goals - goal else goals + goal
                     }
                 }
             }
@@ -351,6 +385,13 @@ private fun OnboardingScreen(
                     Text("Reminders are optional, local, and quiet by default.")
                     PreferenceRow("Enable gentle reminders", "Tiny reset time? One quick task can help.", reminders) { setReminderPreference(it) }
                     if (permissionNote.isNotBlank()) Text(permissionNote, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            item {
+                StudioCard {
+                    Text("Starter routine", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text(starterRoutinePreview(starterRooms, bedroomCount, bathroomCount, householdType, goals, delegationInterest))
+                    Text("Everything stays editable. Delete anything that does not fit your home.")
                 }
             }
         }
@@ -364,14 +405,26 @@ private fun OnboardingScreen(
                 Button(
                     onClick = {
                         if (setupPage) {
-                            viewModel.completeOnboarding(starterRooms.ifEmpty { defaultStarterRooms.toSet() }, reminders)
-                            scope.launch { snackbar.showSnackbar("Setup complete. Welcome to TidyPilot.") }
+                            val selectedRooms = starterRooms.ifEmpty { defaultStarterRooms.toSet() }
+                            viewModel.completeOnboarding(
+                                selectedRooms,
+                                reminders,
+                                starterProfile = StarterRoutineProfile(
+                                    selectedRooms = selectedRooms,
+                                    bedroomCount = bedroomCount,
+                                    bathroomCount = bathroomCount,
+                                    householdType = householdType,
+                                    goals = goals,
+                                    delegationInterest = delegationInterest || "Family delegation" in goals
+                                )
+                            )
+                            scope.launch { snackbar.showSnackbar("Starter routine added. You can edit anything later.") }
                         } else {
                             page++
                         }
                     },
                     modifier = Modifier.weight(1f)
-                ) { Text(if (setupPage) "Finish setup" else "Next") }
+                ) { Text(if (setupPage) "Start with routine" else "Next") }
             }
         }
     }
@@ -380,6 +433,10 @@ private fun OnboardingScreen(
 private data class OnboardingPage(val title: String, val body: String)
 
 private val defaultStarterRooms = listOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry", "Entryway", "Basement")
+
+private val onboardingRoomOptions = listOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry", "Entryway", "Basement", "Office", "Garage", "Kids Room", "Playroom")
+
+private val onboardingGoalOptions = listOf("Basic routine", "Catch up from mess", "Low energy maintenance", "Guest ready", "Workday friendly", "Family delegation")
 
 private fun onboardingPages(): List<OnboardingPage> = listOf(
     OnboardingPage("Welcome", "TidyPilot helps you keep your space manageable."),
@@ -407,6 +464,66 @@ private fun StarterRoomChips(rooms: List<String>, selected: Set<String>, onToggl
             }
         }
     }
+}
+
+@Composable
+private fun StarterGoalChips(goals: List<String>, selected: Set<String>, onToggle: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        goals.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { goal ->
+                    FilterChip(
+                        selected = goal in selected,
+                        onClick = { onToggle(goal) },
+                        label = { Text(goal, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(2 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CountStepper(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontWeight = FontWeight.Black)
+            Text("$value included", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+        FilledTonalButton(onClick = { onChange((value - 1).coerceAtLeast(min)) }, enabled = value > min, colors = tidyTonalButtonColors()) {
+            Text("-")
+        }
+        Text(value.toString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+        FilledTonalButton(onClick = { onChange((value + 1).coerceAtMost(max)) }, enabled = value < max, colors = tidyTonalButtonColors()) {
+            Text("+")
+        }
+    }
+}
+
+private fun starterRoutinePreview(
+    selectedRooms: Set<String>,
+    bedroomCount: Int,
+    bathroomCount: Int,
+    householdType: String,
+    goals: Set<String>,
+    delegationInterest: Boolean
+): String {
+    val roomCount = selectedRooms.count { it !in setOf("Bedroom", "Bathroom") } +
+        if ("Bedroom" in selectedRooms) bedroomCount.coerceAtLeast(1) else 0 +
+        if ("Bathroom" in selectedRooms) bathroomCount.coerceAtLeast(1) else 0
+    val goalText = goals.joinToString(", ").ifBlank { "Basic routine" }
+    val delegationText = if (delegationInterest || householdType == "Family with kids" || "Family delegation" in goals) {
+        " It will also flag a few simple chores as good assignment candidates."
+    } else {
+        ""
+    }
+    return "TidyPilot will create a starter plan for $roomCount room${if (roomCount == 1) "" else "s"} around: $goalText.$delegationText"
 }
 
 @Composable
@@ -448,6 +565,9 @@ private fun DashboardScreen(state: TidyPilotState, viewModel: TidyPilotViewModel
             )
         }
         item { EnergyTodoCard(state, viewModel, nav) }
+        if (state.tasks.count { !it.isArchived && it.frequencyType != "one-time" } < 8) {
+            item { StarterRoutineCard(viewModel) }
+        }
         item { RoutineAutopilotCard(state, viewModel, nav) }
         item { QuickCleanCard(state, viewModel) }
         item {
@@ -678,6 +798,35 @@ private fun EnergyTodoCard(state: TidyPilotState, viewModel: TidyPilotViewModel,
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StarterRoutineCard(viewModel: TidyPilotViewModel) {
+    StudioCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Start with a normal home routine", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("Add everyday chores like dishes, counters, trash, laundry, bathroom reset, bedroom pickup, living room reset, and floors.")
+            }
+            Icon(Icons.Default.AutoAwesome, null, tint = MutedOrange)
+        }
+        RoomStatGrid(
+            "Daily" to "Dishes, counters, bed",
+            "Every few days" to "Trash and laundry",
+            "Weekly" to "Bathroom and floors",
+            "Editable" to "Keep what fits"
+        )
+        Button(
+            onClick = { viewModel.applyStarterRoutine() },
+            modifier = Modifier.fillMaxWidth(),
+            colors = tidyButtonColors()
+        ) {
+            Icon(Icons.Default.PlayArrow, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Add starter routine")
+        }
+        Text("No pressure setup: every chore can be edited, snoozed, or deleted later.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -1956,6 +2105,13 @@ private fun RoomPhotoScanScreen(state: TidyPilotState, viewModel: TidyPilotViewM
                     Text("Visible in photo", fontWeight = FontWeight.SemiBold)
                     Text("Tap what you can see so the local scan suggestions match the room better.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     SelectableContextChips(
+                        options = scanMessLevelOptions,
+                        selectedText = note,
+                        onToggle = { token ->
+                            note = toggleScanContextToken(note, token)
+                        }
+                    )
+                    SelectableContextChips(
                         options = visibleContextOptions,
                         selectedText = note,
                         onToggle = { token ->
@@ -2045,7 +2201,7 @@ private fun LegacyPhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilot
     val room = state.rooms.firstOrNull { it.id == scan.roomId }
     val issues = state.issues.filter { it.scanId == scan.id }
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionHeader("Photo Analysis Results", room?.name ?: "Room scanned") }
+        item { SectionHeader("Scan Summary", room?.name ?: "Room scanned") }
         item {
             StudioCard {
                 if (scan.imageUri.startsWith("content://")) {
@@ -2158,8 +2314,12 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
         if (makePlan) nav.navigate(Route.Dashboard.value)
     }
 
+    val activeDrafts = drafts.filter { it.status == "review" }
+    val ignoredDrafts = drafts.count { it.status == "ignored" || it.status == "not accurate" }
+    val createdDrafts = drafts.count { it.status == "created" }
+
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionHeader("Photo Analysis Results", room?.name ?: "Room scanned") }
+        item { SectionHeader("Scan Summary", room?.name ?: "Room scanned") }
         item {
             StudioCard {
                 if (scan.imageUri.startsWith("content://")) {
@@ -2173,8 +2333,14 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                 Text("Mess score ${scan.messScore}/100", fontWeight = FontWeight.Black)
                 LinearProgressIndicator(progress = { scan.messScore / 100f }, modifier = Modifier.fillMaxWidth())
                 Text(scan.summary.ifBlank { scan.confidenceSummary })
-                if (drafts.isNotEmpty()) {
-                    Text("Start here: ${drafts.first().action}", fontWeight = FontWeight.SemiBold)
+                RoomStatGrid(
+                    "Found" to "${drafts.size} possible issues",
+                    "Ready" to "${activeDrafts.size} to review",
+                    "Created" to "$createdDrafts tasks",
+                    "Ignored" to "$ignoredDrafts items"
+                )
+                if (activeDrafts.isNotEmpty()) {
+                    Text("Start here: ${activeDrafts.first().action}", fontWeight = FontWeight.SemiBold)
                 }
                 Text("Scan results are estimates. Review before creating tasks.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Photos stay on this device.", color = Sage, fontWeight = FontWeight.Black)
@@ -2196,7 +2362,7 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                 }
             }
         }
-        item { SectionHeader("Review detected issues", "Review before adding. These are local estimates, not perfect detection.") }
+        item { SectionHeader("Review detected issues", "Keep useful findings, edit rough ones, or mark anything inaccurate before chores are created.") }
         item {
             StudioCard {
                 Text("${scan.estimatedCleanupMinutes} minutes estimated - ${energyRecommendation(issues)} energy recommended", fontWeight = FontWeight.Black)
@@ -2208,12 +2374,12 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                         var ignored = 0
                         drafts.indices.forEach { index ->
                             if (confidenceLabel(drafts[index].confidence) == "low" && drafts[index].status == "review") {
-                                drafts[index] = drafts[index].copy(status = "ignored", editing = false)
-                                viewModel.updateScanIssueStatus(drafts[index].sourceIssueId, "ignored")
+                                drafts[index] = drafts[index].copy(status = "not accurate", editing = false)
+                                viewModel.updateScanIssueStatus(drafts[index].sourceIssueId, "not_accurate")
                                 ignored++
                             }
                         }
-                        scope.launch { snackbar.showSnackbar("$ignored low-confidence issue${if (ignored == 1) "" else "s"} ignored.") }
+                        scope.launch { snackbar.showSnackbar("$ignored low-confidence issue${if (ignored == 1) "" else "s"} marked not accurate.") }
                     }
                 )
             }
@@ -2243,6 +2409,10 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                     onIgnore = {
                         drafts[index] = draft.copy(status = "ignored", editing = false)
                         viewModel.updateScanIssueStatus(draft.sourceIssueId, "ignored")
+                    },
+                    onNotAccurate = {
+                        drafts[index] = draft.copy(status = "not accurate", editing = false)
+                        viewModel.updateScanIssueStatus(draft.sourceIssueId, "not_accurate")
                     },
                     onHandled = {
                         drafts[index] = draft.copy(status = "handled", editing = false)
@@ -2327,6 +2497,7 @@ private fun ScanIssueEditor(
     onChange: (ScanIssueDraft) -> Unit,
     onCreate: () -> Unit,
     onIgnore: () -> Unit,
+    onNotAccurate: () -> Unit,
     onHandled: () -> Unit
 ) {
     val confidence = confidenceLabel(draft.confidence)
@@ -2370,6 +2541,7 @@ private fun ScanIssueEditor(
         WrapButtons(
             "Create task" to onCreate,
             "Ignore" to onIgnore,
+            "Not accurate" to onNotAccurate,
             (if (draft.editing) "Done editing" else "Edit") to { onChange(draft.copy(editing = !draft.editing)) },
             "Already handled" to onHandled
         )
@@ -2377,6 +2549,8 @@ private fun ScanIssueEditor(
             Text("Task created.", color = Sage, fontWeight = FontWeight.Black)
         } else if (draft.status == "ignored") {
             Text("Ignored for now.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else if (draft.status == "not accurate") {
+            Text("Marked not accurate. This stays local and helps future scanner tuning.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else if (draft.status == "handled") {
             Text("Marked already handled.", color = Sage, fontWeight = FontWeight.Black)
         }
@@ -2397,6 +2571,8 @@ private data class ScanIssueDraft(
 
 private val roomTypeOptions = listOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry", "Entryway", "Basement", "Storage", "Garage", "Office", "Kids Room", "Guest Bedroom", "Other")
 
+private val scanMessLevelOptions = listOf("mostly clear", "quick reset", "moderate mess", "very messy", "lots of clutter", "piles visible")
+
 private fun visibleScanContextOptions(room: RoomEntity?): List<String> {
     val text = "${room?.roomType.orEmpty()} ${room?.name.orEmpty()}".lowercase()
     return when {
@@ -2411,8 +2587,8 @@ private fun visibleScanContextOptions(room: RoomEntity?): List<String> {
             "needs bigger reset"
         )
         text.containsAny("kitchen") -> listOf("dishes visible", "sink full", "counter clutter", "stove area", "trash visible", "floor crumbs", "wipe needed", "needs bigger reset")
-        text.containsAny("bedroom", "bed", "kids room", "guest bedroom") -> listOf("laundry visible", "floor clutter", "unmade bed", "nightstand clutter", "dresser clutter", "closet or boxes", "trash visible", "needs bigger reset")
-        text.containsAny("bath") -> listOf("counter clutter", "sink area", "mirror spots", "towels", "shower or tub", "trash visible", "floor clutter", "wipe needed")
+        text.containsAny("bedroom", "bed", "kids room", "guest bedroom") -> listOf("laundry visible", "clothes on floor", "floor clutter", "unmade bed", "nightstand clutter", "dresser clutter", "closet or boxes", "trash visible", "floor path blocked", "needs bigger reset")
+        text.containsAny("bath") -> listOf("counter clutter", "sink area", "mirror spots", "towels", "shower or tub", "trash visible", "floor clutter", "floor path blocked", "wipe needed")
         text.containsAny("living", "family room", "den") -> listOf("floor clutter", "coffee table clutter", "couch blankets", "toys visible", "electronics cords", "trash visible", "vacuum needed", "needs bigger reset")
         text.containsAny("entry", "mudroom", "hall") -> listOf("shoes visible", "bags or coats", "mail or keys", "floor path blocked", "trash visible", "needs reset")
         text.containsAny("laundry") -> listOf("washer or dryer", "clothes on floor", "basket to fold", "machine top clutter", "shelves cluttered", "needs bigger reset")
@@ -3146,6 +3322,10 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
                             val file = writeLocalReport(context, "tidypilot_data_export_${LocalDate.now()}.txt", buildReport(state, stats))
                             "Export saved locally: ${file.name}"
                         }.getOrElse { "Could not save export locally. Please try again." }
+                    },
+                    "Add starter routine" to {
+                        viewModel.applyStarterRoutine()
+                        actionNote = "Starter routine checked. Any missing everyday chores were added."
                     },
                     "Reset starter data" to {
                         viewModel.resetDemoData()

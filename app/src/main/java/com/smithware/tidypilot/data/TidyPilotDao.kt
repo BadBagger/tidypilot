@@ -44,8 +44,14 @@ interface TidyPilotDao {
     @Query("SELECT name FROM rooms")
     suspend fun roomNames(): List<String>
 
+    @Query("SELECT * FROM rooms WHERE isArchived = 0")
+    suspend fun activeRoomsOnce(): List<RoomEntity>
+
     @Query("SELECT COUNT(*) FROM cleaning_tasks WHERE isArchived = 0")
     suspend fun activeTaskCount(): Int
+
+    @Query("SELECT lower(name) || '|' || roomId FROM cleaning_tasks WHERE isArchived = 0")
+    suspend fun activeTaskRoomKeys(): List<String>
 
     @Query("SELECT COUNT(*) FROM cleaning_tasks WHERE roomId = :roomId")
     suspend fun taskCountForRoom(roomId: String): Int

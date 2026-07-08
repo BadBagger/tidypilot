@@ -149,4 +149,55 @@ class RoomPhotoAnalyzerTest {
         assertTrue("bedroom_surface_clutter" in tags)
         assertTrue("trash_visible" in tags)
     }
+
+    @Test
+    fun blankCameraBedroomScanDefaultsToNeedsReviewNotHighScore() {
+        val room = RoomEntity(id = "bedroom", name = "Bedroom", roomType = "Bedroom", tidyScore = 80)
+
+        val result = RoomPhotoAnalyzer().analyze(
+            room = room,
+            note = "",
+            imageUri = "content://local/camera-bedroom"
+        )
+
+        assertTrue("tidy score was ${result.tidyScore}", result.tidyScore <= 44)
+        assertTrue("mess score was ${result.messScore}", result.messScore >= 56)
+        assertEquals("low", result.confidence)
+        assertTrue(result.confidenceSummary.contains("Review", ignoreCase = true))
+        assertTrue(result.issues.any { it.tag == "floor_clutter" || it.tag == "laundry_visible" })
+    }
+
+    @Test
+    fun visibleMessLevelChipsDriveHeavyReset() {
+        val room = RoomEntity(id = "kids", name = "Kids Room", roomType = "Bedroom", tidyScore = 70)
+
+        val result = RoomPhotoAnalyzer().analyze(
+            room = room,
+            note = "very messy, lots of clutter, piles visible, floor path blocked, clothes on floor, trash visible",
+            imageUri = "content://local/kids-room"
+        )
+
+        val tags = result.issues.map { it.tag }.toSet()
+        assertEquals(MessLevel.HEAVY_RESET, result.messLevel)
+        assertTrue(result.messScore >= 80)
+        assertTrue(result.tidyScore <= 20)
+        assertTrue("floor_clutter" in tags)
+        assertTrue("general_reset_needed" in tags)
+        assertTrue("laundry_visible" in tags)
+        assertTrue("trash_visible" in tags)
+    }
+
+    @Test
+    fun mostlyClearCuePreventsHeavyReset() {
+        val room = RoomEntity(id = "living", name = "Living Room", roomType = "Living Room", tidyScore = 86)
+
+        val result = RoomPhotoAnalyzer().analyze(
+            room = room,
+            note = "mostly clear open floor couch blankets quick reset",
+            imageUri = "content://local/living"
+        )
+
+        assertTrue(result.messLevel != MessLevel.HEAVY_RESET)
+        assertTrue(result.messScore < 55)
+    }
 }

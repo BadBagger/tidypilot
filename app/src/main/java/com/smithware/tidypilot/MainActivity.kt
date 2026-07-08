@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -213,10 +214,21 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
                     NavigationBarItem(
                         selected = current == route.value,
                         onClick = {
-                            nav.navigate(route.value) {
-                                launchSingleTop = true
-                                restoreState = true
-                                popUpTo(Route.Dashboard.value) { saveState = true }
+                            if (route == Route.Dashboard) {
+                                nav.navigate(Route.Dashboard.value) {
+                                    launchSingleTop = true
+                                    restoreState = false
+                                    popUpTo(Route.Dashboard.value) {
+                                        inclusive = false
+                                        saveState = false
+                                    }
+                                }
+                            } else {
+                                nav.navigate(route.value) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                    popUpTo(Route.Dashboard.value) { saveState = true }
+                                }
                             }
                         },
                         icon = route.icon,
@@ -1542,8 +1554,12 @@ private fun ScheduleImportScreen(state: TidyPilotState, viewModel: TidyPilotView
 @Composable
 private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, snackbar: SnackbarHostState, nav: NavHostController) {
     var editingShift by remember { mutableStateOf<WorkShiftEntity?>(null) }
+    val listState = rememberLazyListState()
     val today = LocalDate.now()
-    LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LaunchedEffect(editingShift?.id) {
+        if (editingShift != null) listState.animateScrollToItem(2)
+    }
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionHeader("Work Schedule", "TidyPilot plans around shifts, days off, and recovery time.") }
         item {
             StudioCard {
@@ -1551,6 +1567,14 @@ private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                 Text("Use the schedule importer for faster setup, then review before saving.")
                 Button(onClick = { nav.navigate(Route.Import.value) }, modifier = Modifier.fillMaxWidth()) {
                     Text("Open schedule importer")
+                }
+            }
+        }
+        editingShift?.let { shift ->
+            item(key = "edit-${shift.id}") {
+                ShiftForm(viewModel, snackbar, shift) { editingShift = null }
+                TextButton(onClick = { editingShift = null }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel edit")
                 }
             }
         }
@@ -1570,10 +1594,13 @@ private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                 shift = shift,
                 onEdit = { editingShift = shift },
                 onDelete = { viewModel.deleteShift(shift) },
-                onDayOff = { viewModel.markDayOff(shift.date) }
+                onDayOff = { viewModel.markDayOff(shift.date) },
+                onExhaustionChange = { level -> viewModel.saveShift(shift.copy(expectedExhaustionLevel = level)) }
             )
         }
-        item { ShiftForm(viewModel, snackbar, editingShift) { editingShift = null } }
+        if (editingShift == null) {
+            item { ShiftForm(viewModel, snackbar) }
+        }
     }
 }
 
@@ -1763,7 +1790,13 @@ private fun ScheduleImportCandidateRow(candidate: ScheduleImportCandidate, onIgn
 }
 
 @Composable
-private fun WorkShiftCard(shift: WorkShiftEntity, onEdit: () -> Unit, onDelete: () -> Unit, onDayOff: () -> Unit) {
+private fun WorkShiftCard(
+    shift: WorkShiftEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onDayOff: () -> Unit,
+    onExhaustionChange: (String) -> Unit
+) {
     StudioCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Work, null, tint = MutedOrange)
@@ -1775,6 +1808,8 @@ private fun WorkShiftCard(shift: WorkShiftEntity, onEdit: () -> Unit, onDelete: 
                 if (shift.notes.isNotBlank()) Text(shift.notes, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        Text("Expected exhaustion after shift", fontWeight = FontWeight.SemiBold)
+        OptionChips(listOf("low", "medium", "high"), shift.expectedExhaustionLevel, onExhaustionChange)
         WrapButtons(
             "Edit shift" to onEdit,
             "Delete shift" to onDelete,

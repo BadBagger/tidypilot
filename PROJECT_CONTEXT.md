@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.8-schedule-import`
+- Current release target: `v0.1.9-nav-shift-fix`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -56,10 +56,9 @@ no tracking, no paid API, and no network upload in v1.
   toolchain.
 - `:app:assembleRelease` passed on 2026-07-07 with the known local Android
   toolchain.
-- Release `v0.1.8-schedule-import` is the current release target. It makes the
-  work schedule screenshot importer a first-class flow, improves local OCR
-  guidance and day-off parsing, and keeps imported shifts connected to adaptive
-  chore planning.
+- Release `v0.1.9-nav-shift-fix` is the current release target. It fixes the
+  Today bottom navigation path, makes shift editing visibly open near the top of
+  Work Schedule, and adds quick expected-exhaustion chips on saved shifts.
 
 ## DevHub
 

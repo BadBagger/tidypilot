@@ -118,6 +118,7 @@ import com.smithware.tidypilot.data.WorkShiftEntity
 import com.smithware.tidypilot.data.calculateRoomScore
 import com.smithware.tidypilot.data.unpipe
 import com.smithware.tidypilot.ui.theme.Charcoal
+import com.smithware.tidypilot.ui.theme.CleanWhite
 import com.smithware.tidypilot.ui.theme.Cream
 import com.smithware.tidypilot.ui.theme.Graphite
 import com.smithware.tidypilot.ui.theme.MutedOrange
@@ -246,7 +247,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
                 val type = entry.arguments?.getString("type").orEmpty()
                 val id = entry.arguments?.getString("id").orEmpty()
                 if (type == "room") {
-                    RoomDetailScreen(id, state, nav)
+                    RoomDetailScreen(id, state, viewModel, nav, snackbar)
                 } else {
                     DetailScreen(type, id, state, viewModel, nav, snackbar)
                 }
@@ -467,18 +468,18 @@ private fun DashboardHeroCard(
     onScan: () -> Unit,
     onReplan: () -> Unit
 ) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Charcoal), modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.background(Brush.linearGradient(listOf(Color(0xFF152522), Graphite, Color(0xFF102F2D)))).padding(16.dp)) {
+    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth()) {
+        Box(Modifier.background(Brush.linearGradient(listOf(Cream, Color(0xFFE8FFF6), Color(0xFFD7F7EE)))).padding(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     BrandMark(Modifier.size(34.dp))
                     Column {
-                        Text("TidyPilot", color = Cream, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                        Text("Calm home control", color = TidyMint, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text("TidyPilot", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                        Text("Calm home control", color = TidyDeepTeal, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Text(date.uppercase(), color = MutedOrange, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
                     }
                 }
-                Text(title, color = Cream, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     DashboardMetricPill("Plan", planType, Modifier.weight(1.3f))
                     DashboardMetricPill("Energy", energy, Modifier.weight(1f))
@@ -508,7 +509,7 @@ private fun DashboardHeroCard(
                 }
                 if (recommendedTask != null) {
                     TextButton(onClick = onOpenRecommended) {
-                        Text("View task details", color = TidyMint)
+                        Text("View task details", color = TidyDeepTeal)
                     }
                 }
             }
@@ -520,11 +521,11 @@ private fun DashboardHeroCard(
 private fun DashboardMetricPill(label: String, value: String, modifier: Modifier = Modifier) {
     Column(
         modifier
-            .background(Cream.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+            .background(CleanWhite.copy(alpha = 0.78f), RoundedCornerShape(8.dp))
             .padding(10.dp)
     ) {
-        Text(label, color = Cream.copy(alpha = 0.78f), style = MaterialTheme.typography.labelMedium)
-        Text(value, color = TidyMint, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+        Text(value, color = TidyDeepTeal, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -2393,7 +2394,8 @@ private fun scanDraftDifficulty(draft: ScanIssueDraft): String {
 }
 
 @Composable
-private fun RoomDetailScreen(id: String, state: TidyPilotState, nav: NavHostController) {
+private fun RoomDetailScreen(id: String, state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController, snackbar: SnackbarHostState) {
+    val scope = rememberCoroutineScope()
     val room = state.rooms.firstOrNull { it.id == id }
     if (room == null) {
         EmptyState("Room not found", "Return to your rooms and choose another room.") { nav.navigate(Route.Rooms.value) }
@@ -2438,7 +2440,11 @@ private fun RoomDetailScreen(id: String, state: TidyPilotState, nav: NavHostCont
                                 Text(itemTask.name, fontWeight = FontWeight.SemiBold)
                                 Text("${itemTask.estimatedMinutes} min - ${itemTask.energyRequired} energy", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            IconButton(onClick = { nav.navigate("detail/task/${itemTask.id}") }) { Icon(Icons.Default.Edit, "Task detail") }
+                            IconButton(onClick = { nav.navigate("editTask/${itemTask.id}") }) { Icon(Icons.Default.Edit, "Edit task") }
+                            IconButton(onClick = {
+                                viewModel.deleteTask(itemTask)
+                                scope.launch { snackbar.showSnackbar("${itemTask.name} removed.") }
+                            }) { Icon(Icons.Default.Delete, "Delete task", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     }
                 }
@@ -2473,7 +2479,11 @@ private fun DetailScreen(type: String, id: String, state: TidyPilotState, viewMo
                                 scope.launch { snackbar.showSnackbar("Task snoozed.") }
                             },
                             "Edit" to { nav.navigate("editTask/${task.id}") },
-                            "Delete" to { viewModel.deleteTask(task); nav.navigate(Route.Dashboard.value) }
+                            "Delete" to {
+                                viewModel.deleteTask(task)
+                                scope.launch { snackbar.showSnackbar("Task removed.") }
+                                if (!nav.popBackStack()) nav.navigate(Route.Rooms.value)
+                            }
                         )
                     }
                 }
@@ -3520,7 +3530,7 @@ private fun roomAttentionText(room: RoomEntity): String = when {
     else -> "Mostly steady. Maintain with a quick pass."
 }
 
-private fun dashboardWorkStatusLabel(workStatus: String, state: TidyPilotState): String = when (workStatus) {
+private fun dashboardWorkStatusLabel(workStatus: String, state: TidyPilotState): String = when (workStatus.lowercase()) {
     "day off", "free day" -> "Day off"
     "before work" -> "Before work"
     "after work" -> "After work"
@@ -3530,12 +3540,13 @@ private fun dashboardWorkStatusLabel(workStatus: String, state: TidyPilotState):
 }
 
 private fun dashboardWorkStatusDetail(workStatus: String, state: TidyPilotState): String {
+    val normalized = workStatus.lowercase()
     val shift = state.todayShift
     return when {
-        workStatus == "day off" || workStatus == "free day" || shift == null -> "Good for a reset"
-        workStatus == "before work" -> "Quick tasks before ${shift.startTime}"
-        workStatus == "after work" -> "Low-energy reset after shift"
-        workStatus == "too tight today" -> "Smallest useful task"
+        normalized == "day off" || normalized == "free day" || shift == null -> "Good for a reset"
+        normalized == "before work" -> "Quick tasks before ${shift.startTime}"
+        normalized == "after work" -> "Low-energy reset after shift"
+        normalized == "too tight today" -> "Smallest useful task"
         else -> "${shift.startTime} - ${shift.endTime}"
     }
 }

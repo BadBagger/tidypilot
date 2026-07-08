@@ -34,8 +34,8 @@ android {
         applicationId = "com.smithware.tidypilot"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.1.6-ui-polish"
+        versionCode = 8
+        versionName = "0.1.7-task-delete-hero-fix"
     }
 
     signingConfigs {

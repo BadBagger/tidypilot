@@ -8,44 +8,64 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val Charcoal = Color(0xFF252420)
-val Graphite = Color(0xFF34332E)
-val Cream = Color(0xFFF7EBDD)
-val CleanWhite = Color(0xFFFFFCF7)
-val Sage = Color(0xFF87A878)
-val DeepSage = Color(0xFF4F6F52)
-val MutedOrange = Color(0xFFD8894C)
-val SoftClay = Color(0xFFE7C7A8)
-val Ink = Color(0xFF181715)
+val Charcoal = Color(0xFF1A1815)
+val Graphite = Color(0xFF24221D)
+val Cream = Color(0xFFFFF7EA)
+val CleanWhite = Color(0xFFFFFCF5)
+val TidyAqua = Color(0xFF28C7B5)
+val TidyMint = Color(0xFFB9F2DF)
+val TidyDeepTeal = Color(0xFF0F8F83)
+val TidyLeaf = Color(0xFF7FBE4B)
+val TidySun = Color(0xFFFFD25E)
+val TidyCoral = Color(0xFFF47C73)
+val Sage = TidyLeaf
+val DeepSage = Color(0xFF4F8A48)
+val MutedOrange = TidySun
+val SoftClay = Color(0xFFFFC1A6)
+val Ink = Color(0xFF171512)
 
 private val LightColors = lightColorScheme(
-    primary = MutedOrange,
+    primary = TidyAqua,
     onPrimary = Ink,
-    secondary = DeepSage,
+    primaryContainer = TidyMint,
+    onPrimaryContainer = Ink,
+    secondary = TidyLeaf,
     onSecondary = Ink,
-    tertiary = Sage,
+    secondaryContainer = Color(0xFFDFF5D3),
+    onSecondaryContainer = Ink,
+    tertiary = TidySun,
+    onTertiary = Ink,
+    tertiaryContainer = Color(0xFFFFE8A8),
+    onTertiaryContainer = Ink,
     background = Cream,
     onBackground = Ink,
     surface = CleanWhite,
     onSurface = Ink,
-    surfaceVariant = Color(0xFFE9DFCF),
+    surfaceVariant = Color(0xFFE4F4EB),
     onSurfaceVariant = Graphite,
-    outline = Color(0xFF8C8171)
+    outline = Color(0xFF78A69C)
 )
 
 private val DarkColors = darkColorScheme(
-    primary = MutedOrange,
+    primary = TidyAqua,
     onPrimary = Ink,
-    secondary = Sage,
+    primaryContainer = Color(0xFF12675F),
+    onPrimaryContainer = Cream,
+    secondary = TidyLeaf,
     onSecondary = Ink,
-    tertiary = SoftClay,
-    background = Color(0xFF12110F),
+    secondaryContainer = Color(0xFF2D4C2D),
+    onSecondaryContainer = Cream,
+    tertiary = TidySun,
+    onTertiary = Ink,
+    tertiaryContainer = Color(0xFF6D5520),
+    onTertiaryContainer = Cream,
+    background = Color(0xFF121612),
     onBackground = Cream,
-    surface = Color(0xFF1F1E1A),
+    surface = Color(0xFF1C211D),
     onSurface = Cream,
-    surfaceVariant = Color(0xFF2B2A25),
-    onSurfaceVariant = Color(0xFFD7CCBC),
-    outline = Color(0xFF9A8B78)
+    surfaceVariant = Color(0xFF26342F),
+    onSurfaceVariant = Color(0xFFD2E4D8),
+    outline = Color(0xFF67BDB2)
 )
 
 @Composable

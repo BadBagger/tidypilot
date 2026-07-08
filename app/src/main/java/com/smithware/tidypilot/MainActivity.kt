@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -63,6 +64,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -84,6 +86,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -119,6 +122,11 @@ import com.smithware.tidypilot.ui.theme.Cream
 import com.smithware.tidypilot.ui.theme.Graphite
 import com.smithware.tidypilot.ui.theme.MutedOrange
 import com.smithware.tidypilot.ui.theme.Sage
+import com.smithware.tidypilot.ui.theme.TidyAqua
+import com.smithware.tidypilot.ui.theme.TidyCoral
+import com.smithware.tidypilot.ui.theme.TidyDeepTeal
+import com.smithware.tidypilot.ui.theme.TidyLeaf
+import com.smithware.tidypilot.ui.theme.TidyMint
 import com.smithware.tidypilot.ui.theme.TidyPilotTheme
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -205,7 +213,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
         },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 listOf(Route.Dashboard, Route.Add, Route.Rooms, Route.Reports, Route.Settings).forEach { route ->
                     NavigationBarItem(
                         selected = current == route.value,
@@ -217,7 +225,14 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
                             }
                         },
                         icon = route.icon,
-                        label = { Text(route.label) }
+                        label = { Text(route.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Cream,
+                            selectedTextColor = TidyMint,
+                            indicatorColor = TidyDeepTeal,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurface,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurface
+                        )
                     )
                 }
             }
@@ -407,6 +422,8 @@ private fun DashboardScreen(state: TidyPilotState, viewModel: TidyPilotViewModel
                 onScan = { nav.navigate("scan") }
             )
         }
+        item { EnergyTodoCard(state, viewModel, nav) }
+        item { RoutineAutopilotCard(state, viewModel, nav) }
         item { QuickCleanCard(state, viewModel) }
         item {
             SectionHeader("Today's cleaning plan", plan?.adaptedReason ?: "A realistic reset plan for the next useful step.")
@@ -442,7 +459,7 @@ private fun DashboardHeroCard(
     onReplan: () -> Unit
 ) {
     Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Charcoal), modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.background(Brush.linearGradient(listOf(Charcoal, Graphite, Charcoal))).padding(20.dp)) {
+        Box(Modifier.background(Brush.linearGradient(listOf(Color(0xFF152522), Graphite, Color(0xFF102F2D)))).padding(20.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     BrandMark(Modifier.size(40.dp))
@@ -458,12 +475,12 @@ private fun DashboardHeroCard(
                     DashboardMetricPill("Time", "$minutes min", Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = onScan, modifier = Modifier.weight(1f)) {
+                    Button(onClick = onScan, modifier = Modifier.weight(1f), colors = tidyButtonColors()) {
                         Icon(Icons.Default.CameraAlt, null)
                         Spacer(Modifier.width(6.dp))
                         Text("Scan room")
                     }
-                    FilledTonalButton(onClick = onReplan, modifier = Modifier.weight(1f)) {
+                    FilledTonalButton(onClick = onReplan, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) {
                         Icon(Icons.Default.Refresh, null)
                         Spacer(Modifier.width(6.dp))
                         Text("Check in")
@@ -482,7 +499,7 @@ private fun DashboardMetricPill(label: String, value: String, modifier: Modifier
             .padding(12.dp)
     ) {
         Text(label, color = Cream.copy(alpha = 0.78f), style = MaterialTheme.typography.labelMedium)
-        Text(value, color = Cream, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+        Text(value, color = TidyMint, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
     }
 }
 
@@ -518,7 +535,7 @@ private fun DashboardMiniCard(
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = if (label == "Done today" || label == "Streak") Sage else MutedOrange, modifier = Modifier.size(22.dp))
+                Icon(icon, null, tint = if (label == "Done today" || label == "Streak") TidyLeaf else TidyAqua, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             }
@@ -540,7 +557,7 @@ private fun QuickStartCard(
         Text("Quick start", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
         if (task == null) {
             Text("No task is ready yet. Scan a room or reset the plan to pick one small win.")
-            Button(onClick = onScan) {
+            Button(onClick = onScan, colors = tidyButtonColors()) {
                 Icon(Icons.Default.CameraAlt, null)
                 Spacer(Modifier.width(6.dp))
                 Text("Scan room")
@@ -551,13 +568,89 @@ private fun QuickStartCard(
             Text(task.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
             Text(taskMeta(task, state), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = onStart, modifier = Modifier.weight(1f)) {
+                Button(onClick = onStart, modifier = Modifier.weight(1f), colors = tidyButtonColors()) {
                     Icon(Icons.Default.CheckCircle, null)
                     Spacer(Modifier.width(6.dp))
                     Text("Start task")
                 }
-                FilledTonalButton(onClick = onOpen, modifier = Modifier.weight(1f)) {
+                FilledTonalButton(onClick = onOpen, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) {
                     Text("Details")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnergyTodoCard(state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController) {
+    val energy = state.latestCheckIn?.energyLevel ?: state.settings.defaultEnergyLevel
+    val tasks = energyTodoTasks(state, energy)
+    StudioCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Doable for your energy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text(energyTodoCopy(energy), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Box(
+                Modifier
+                    .background(TidyAqua.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(energyLabel(energy), color = TidyAqua, fontWeight = FontWeight.Black)
+            }
+        }
+        if (tasks.isEmpty()) {
+            Text("No chores queued.", fontWeight = FontWeight.Black)
+            Text("Add a task or run a quick room scan.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            tasks.forEach { task ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.CheckCircle, null, tint = taskEnergyColor(task), modifier = Modifier.size(22.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(task.name, fontWeight = FontWeight.Black)
+                        Text("${task.estimatedMinutes} min - ${task.energyRequired} energy - ${repeatLabel(task.frequencyType)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { viewModel.markComplete(task) }) { Icon(Icons.Default.CheckCircle, "Mark complete", tint = TidyLeaf) }
+                    IconButton(onClick = { nav.navigate("detail/task/${task.id}") }) { Icon(Icons.Default.Edit, "Task detail") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutineAutopilotCard(state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController) {
+    val routines = state.tasks
+        .filter { !it.isArchived && it.frequencyType != "one-time" }
+        .sortedWith(compareBy<CleaningTaskEntity> { it.nextDueAt ?: state.today }.thenBy { it.estimatedMinutes })
+        .take(4)
+    StudioCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Routine autopilot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("Repeating chores reschedule after you mark them complete.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Default.Refresh, null, tint = TidyAqua)
+        }
+        if (routines.isEmpty()) {
+            Text("No repeating chores yet.", fontWeight = FontWeight.Black)
+            Text("Set a repeat frequency when adding a task.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            routines.forEach { task ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        Modifier
+                            .background(TidyMint.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Text(repeatLabel(task.frequencyType), color = TidyAqua, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(task.name, fontWeight = FontWeight.Black)
+                        Text(nextDueLabel(task, state.today), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { viewModel.markComplete(task) }) { Icon(Icons.Default.CheckCircle, "Complete routine", tint = TidyLeaf) }
+                    IconButton(onClick = { nav.navigate("detail/task/${task.id}") }) { Icon(Icons.Default.Edit, "Edit routine") }
                 }
             }
         }
@@ -573,7 +666,7 @@ private fun QuickCleanCard(state: TidyPilotState, viewModel: TidyPilotViewModel)
                 Text("Quick Clean", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                 Text("Pick your time. TidyPilot builds a local mini plan from your tasks.")
             }
-            Icon(Icons.Default.CleaningServices, null, tint = MutedOrange)
+            Icon(Icons.Default.CleaningServices, null, tint = TidyAqua)
         }
         RoomStatGrid(
             "5 min" to "Trash or one surface",
@@ -789,7 +882,7 @@ private fun QuickActions(onExhausted: () -> Unit, onTen: () -> Unit, onMore: () 
     StudioCard {
         Text("Quick actions", fontWeight = FontWeight.Black)
         WrapButtons(
-            "I’m exhausted" to onExhausted,
+            "I'm exhausted" to onExhausted,
             "I have 10 minutes" to onTen,
             "I can do more" to onMore,
             "Skip and replan" to onSkip,
@@ -929,18 +1022,54 @@ private fun TaskForm(
         OptionChips(listOf("low", "medium", "high"), energy) { energy = it }
         Text("Repeat frequency")
         OptionChips(listOf("one-time", "daily", "every few days", "weekly", "monthly"), frequency) { frequency = it }
+        RoutinePreviewCard(
+            frequency = frequency,
+            dueChoice = dueChoice,
+            energy = energy,
+            minutes = minutes.toIntOrNull() ?: 10
+        )
         Text("Priority")
         OptionChips(listOf("low", "normal", "high", "urgent"), priority) { priority = it }
         Text("Optional due date")
         OptionChips(dueOptions(dueChoice), dueChoice) { dueChoice = it }
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { save(false) }, modifier = Modifier.weight(1f)) {
+            Button(onClick = { save(false) }, modifier = Modifier.weight(1f), colors = tidyButtonColors()) {
                 Icon(Icons.Default.CheckCircle, null)
                 Spacer(Modifier.width(6.dp))
                 Text(if (existing == null) "Save task" else "Update task")
             }
-            FilledTonalButton(onClick = { save(true) }, modifier = Modifier.weight(1f)) { Text("Save and add another") }
+            FilledTonalButton(onClick = { save(true) }, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) { Text("Save and add another") }
+        }
+    }
+}
+
+@Composable
+private fun RoutinePreviewCard(frequency: String, dueChoice: String, energy: String, minutes: Int) {
+    val isRoutine = frequency != "one-time"
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                if (isRoutine) TidyMint.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Refresh, null, tint = if (isRoutine) TidyAqua else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                Text(if (isRoutine) "Routine autopilot on" else "One-time task", fontWeight = FontWeight.Black)
+            }
+            Text(
+                if (isRoutine) {
+                    "After you mark it complete, TidyPilot moves the next due date to ${repeatPreview(frequency)}. It stays local and shows up when it fits your energy."
+                } else {
+                    "This chore leaves the plan after you complete it."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text("Starts: ${dueChoiceLabel(dueChoice)} - $minutes min - ${energyLabel(energy)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -975,7 +1104,7 @@ private fun TaskTemplateChips(templates: List<TaskTemplate>, onSelect: (TaskTemp
         templates.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { template ->
-                    FilledTonalButton(onClick = { onSelect(template) }, modifier = Modifier.weight(1f)) {
+                    FilledTonalButton(onClick = { onSelect(template) }, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) {
                         Text(template.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
@@ -1223,8 +1352,8 @@ private fun LegacyWorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilot
             StudioCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("${shift.date} • ${shift.label}", fontWeight = FontWeight.Black)
-                        Text("${shift.startTime} - ${shift.endTime} • expected ${shift.expectedExhaustionLevel} exhaustion")
+                        Text("${shift.date} - ${shift.label}", fontWeight = FontWeight.Black)
+                        Text("${shift.startTime} - ${shift.endTime} - expected ${shift.expectedExhaustionLevel} exhaustion")
                         if (shift.notes.isNotBlank()) Text(shift.notes)
                     }
                     IconButton(onClick = { viewModel.deleteShift(shift) }) { Icon(Icons.Default.Delete, "Delete shift") }
@@ -1669,23 +1798,23 @@ private fun LegacyPhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilot
                 if (scan.imageUri.startsWith("content://")) {
                     Image(rememberAsyncImagePainter(Uri.parse(scan.imageUri)), null, Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
                 }
-                Text("Tidy score ${scan.tidyScore}/100 • mess score ${scan.messScore}/100", fontWeight = FontWeight.Black)
+                Text("Tidy score ${scan.tidyScore}/100 - mess score ${scan.messScore}/100", fontWeight = FontWeight.Black)
                 LinearProgressIndicator(progress = { scan.tidyScore / 100f }, modifier = Modifier.fillMaxWidth())
                 Text(scan.confidenceSummary)
                 Text("Detected issues: ${scan.detectedIssueTags.unpipe().joinToString(", ")}")
             }
         }
-        item { SectionHeader("Suggested actions", "${scan.estimatedCleanupMinutes} minutes total • ${energyRecommendation(issues)} energy recommended") }
+        item { SectionHeader("Suggested actions", "${scan.estimatedCleanupMinutes} minutes total - ${energyRecommendation(issues)} energy recommended") }
         items(issues, key = { it.id }) { issue ->
             StudioCard {
                 Text(issue.suggestedAction, fontWeight = FontWeight.Black)
-                Text("${issue.label} • ${issue.estimatedMinutes} min • ${issue.energyLevel} energy • ${(issue.confidence * 100).toInt()}% rough confidence")
+                Text("${issue.label} - ${issue.estimatedMinutes} min - ${issue.energyLevel} energy - ${(issue.confidence * 100).toInt()}% rough confidence")
             }
         }
         item {
             StudioCard {
                 WrapButtons(
-                    "Make this today’s plan" to { viewModel.addTasksFromScan(scan); viewModel.replan(); nav.navigate(Route.Dashboard.value) },
+                    "Make this today's plan" to { viewModel.addTasksFromScan(scan); viewModel.replan(); nav.navigate(Route.Dashboard.value) },
                     "Add selected tasks" to { viewModel.addTasksFromScan(scan) },
                     "Save for later" to { nav.navigate(Route.Dashboard.value) },
                     "Compare before/after" to { nav.navigate("scan") }
@@ -1818,7 +1947,7 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
         item {
             StudioCard {
                 Text("${scan.estimatedCleanupMinutes} minutes estimated - ${energyRecommendation(issues)} energy recommended", fontWeight = FontWeight.Black)
-                Text("Possible scan findings can be edited or ignored before they become chores. No shame — make it manageable.")
+                Text("Possible scan findings can be edited or ignored before they become chores. No shame - make it manageable.")
                 WrapButtons(
                     "Create all suggested tasks" to { createTasksFromDrafts(false) },
                     "Create only quick tasks" to { createTasksFromDrafts(false, quickOnly = true) },
@@ -2223,10 +2352,11 @@ private fun DetailScreen(type: String, id: String, state: TidyPilotState, viewMo
                 item { SectionHeader(task.name, state.rooms.firstOrNull { it.id == task.roomId }?.name ?: "Room") }
                 item {
                     StudioCard {
-                        Text("${task.estimatedMinutes} min • ${task.energyRequired} energy • ${task.frequencyType}", fontWeight = FontWeight.Black)
-                        Text("Priority: ${task.priority} • preferred ${task.preferredTime}")
+                        Text("${task.estimatedMinutes} min - ${task.energyRequired} energy - ${task.frequencyType}", fontWeight = FontWeight.Black)
+                        Text("Priority: ${task.priority} - preferred ${task.preferredTime}")
                         Text("Last completed: ${task.lastCompletedAt ?: "not yet"}")
                         Text("Next due: ${task.nextDueAt ?: "done"}")
+                        if (task.frequencyType != "one-time") Text("Routine autopilot: completing this task schedules it again ${repeatPreview(task.frequencyType)}.")
                         Text("Completion history: ${state.completions.count { it.taskId == task.id }} completed")
                         if (task.skippedCount > 1) Text("Recovery suggestion: break this into a smaller first step.")
                         if (task.description.isNotBlank()) Text(task.description)
@@ -2257,7 +2387,7 @@ private fun DetailScreen(type: String, id: String, state: TidyPilotState, viewMo
                     }
                 }
             }
-            else -> item { EmptyState("Detail not found", "Return to today’s plan.") { nav.navigate(Route.Dashboard.value) } }
+            else -> item { EmptyState("Detail not found", "Return to today's plan.") { nav.navigate(Route.Dashboard.value) } }
         }
     }
 }
@@ -2358,7 +2488,7 @@ private fun LegacySettingsScreen(state: TidyPilotState, viewModel: TidyPilotView
                 Text("Default cleaning intensity")
                 OptionChips(listOf("gentle", "balanced", "deep"), intensity) { intensity = it }
                 OutlinedTextField(recovery, { recovery = it.filter(Char::isDigit) }, label = { Text("Default work recovery minutes after shift") }, modifier = Modifier.fillMaxWidth())
-                PreferenceRow("Energy check-in reminders", "Quick reset time? How’s your energy after work?", reminders) { reminders = it }
+                PreferenceRow("Energy check-in reminders", "Quick reset time? How's your energy after work?", reminders) { reminders = it }
                 OutlinedTextField(reminderTime, { reminderTime = it }, label = { Text("Cleaning reminder time") }, modifier = Modifier.fillMaxWidth())
                 Text("Day-off cleaning preference")
                 Text("Good day for a deeper reset if you feel up to it.")
@@ -2619,11 +2749,11 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
                     val deleted = deleteSavedScanPhotos(context)
                     viewModel.clearScanData()
                     actionNote = if (deleted) "Saved scan photos and scan results deleted." else "Scan results deleted. Some photo files may already be gone."
-                }) { Text("Delete saved scan photos") }
+                }, colors = tidyTonalButtonColors()) { Text("Delete saved scan photos") }
                 FilledTonalButton(onClick = {
                     viewModel.clearScanData()
                     actionNote = "Scan history deleted."
-                }) { Text("Delete scan history") }
+                }, colors = tidyTonalButtonColors()) { Text("Delete scan history") }
             }
         }
         item {
@@ -2642,7 +2772,7 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
                         actionNote = "Starter data reset."
                     }
                 )
-                FilledTonalButton(onClick = { confirmDeleteAll = !confirmDeleteAll }) { Text(if (confirmDeleteAll) "Cancel delete" else "Delete all local data") }
+                FilledTonalButton(onClick = { confirmDeleteAll = !confirmDeleteAll }, colors = tidyTonalButtonColors()) { Text(if (confirmDeleteAll) "Cancel delete" else "Delete all local data") }
                 if (confirmDeleteAll) {
                     Text("This removes rooms, tasks, shifts, scans, reports, settings, and local onboarding state.")
                     Button(onClick = {
@@ -2650,7 +2780,7 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
                         viewModel.deleteAllLocalData()
                         actionNote = "All local TidyPilot data deleted."
                         confirmDeleteAll = false
-                    }) { Text("Confirm delete all local data") }
+                    }, colors = ButtonDefaults.buttonColors(containerColor = TidyCoral, contentColor = Color.White)) { Text("Confirm delete all local data") }
                 }
             }
         }
@@ -2669,7 +2799,7 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
             }
         }
         item {
-            Button(onClick = { saveSettings() }, modifier = Modifier.fillMaxWidth()) { Text("Save settings") }
+            Button(onClick = { saveSettings() }, modifier = Modifier.fillMaxWidth(), colors = tidyButtonColors()) { Text("Save settings") }
             if (actionNote.isNotBlank()) Text(actionNote, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -2694,11 +2824,11 @@ private fun reminderCopyExamples(state: TidyPilotState, lowEnergyMode: String): 
 private fun TaskRow(task: CleaningTaskEntity, state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController) {
     StudioCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.CleaningServices, null, tint = MutedOrange)
+            Icon(Icons.Default.CleaningServices, null, tint = TidyAqua)
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(task.name, fontWeight = FontWeight.Black)
-                Text("${state.rooms.firstOrNull { it.id == task.roomId }?.name ?: "Room"} • ${task.estimatedMinutes} min • ${task.energyRequired} energy")
+                Text("${state.rooms.firstOrNull { it.id == task.roomId }?.name ?: "Room"} - ${task.estimatedMinutes} min - ${task.energyRequired} energy")
                 if (task.skippedCount > 1) Text("Try a smaller first step today.", color = MaterialTheme.colorScheme.secondary)
             }
             IconButton(onClick = { viewModel.markComplete(task) }) { Icon(Icons.Default.CheckCircle, "Mark complete") }
@@ -2758,7 +2888,7 @@ private fun EmptyState(title: String, body: String, actionLabel: String = "Start
                     .background(MutedOrange.copy(alpha = 0.14f), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Home, null, tint = MutedOrange)
+                Icon(Icons.Default.Home, null, tint = TidyAqua)
             }
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
@@ -2766,7 +2896,7 @@ private fun EmptyState(title: String, body: String, actionLabel: String = "Start
             }
         }
         if (action != null) {
-            Button(onClick = action) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text(actionLabel) }
+            Button(onClick = action, colors = tidyButtonColors()) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text(actionLabel) }
         }
     }
 }
@@ -2775,13 +2905,33 @@ private fun EmptyState(title: String, body: String, actionLabel: String = "Start
 private fun OptionChips(options: List<String>, selected: String, onSelect: (String) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         options.take(4).forEach { option ->
-            FilterChip(selected = selected == option, onClick = { onSelect(option) }, label = { Text(option, maxLines = 1, overflow = TextOverflow.Ellipsis) })
+            FilterChip(
+                selected = selected == option,
+                onClick = { onSelect(option) },
+                label = { Text(option, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = TidyMint,
+                    selectedLabelColor = Color(0xFF10211E),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+                    labelColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
         }
     }
     if (options.size > 4) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             options.drop(4).take(5).forEach { option ->
-                FilterChip(selected = selected == option, onClick = { onSelect(option) }, label = { Text(option, maxLines = 1, overflow = TextOverflow.Ellipsis) })
+                FilterChip(
+                    selected = selected == option,
+                    onClick = { onSelect(option) },
+                    label = { Text(option, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = TidyMint,
+                        selectedLabelColor = Color(0xFF10211E),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+                        labelColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
             }
         }
     }
@@ -2793,7 +2943,7 @@ private fun WrapButtons(vararg actions: Pair<String, () -> Unit>) {
         actions.toList().chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { (label, action) ->
-                    FilledTonalButton(onClick = action, modifier = Modifier.weight(1f)) { Text(label) }
+                    FilledTonalButton(onClick = action, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) { Text(label) }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -2888,6 +3038,81 @@ private fun taskMeta(task: CleaningTaskEntity, state: TidyPilotState): String {
     val room = state.rooms.firstOrNull { it.id == task.roomId }?.name ?: "Room"
     return "$room - ${task.estimatedMinutes} min - ${task.energyRequired} energy"
 }
+
+private fun energyTodoTasks(state: TidyPilotState, energy: String): List<CleaningTaskEntity> {
+    val base = state.suggestedTasks.ifEmpty {
+        state.tasks.filter { !it.isArchived && (it.nextDueAt == null || !it.nextDueAt.isAfter(state.today)) }
+    }
+    val filtered = when (energy) {
+        "very low" -> base.filter { it.energyRequired == "low" && it.estimatedMinutes <= 5 }
+        "low" -> base.filter { it.energyRequired == "low" && it.estimatedMinutes <= 10 }
+        "high" -> base
+        else -> base.filter { it.energyRequired != "high" && it.estimatedMinutes <= 15 }
+    }
+    return filtered
+        .sortedWith(compareBy<CleaningTaskEntity> { it.estimatedMinutes }.thenByDescending { priorityScore(it.priority) })
+        .take(if (energy == "high") 5 else 3)
+        .ifEmpty { state.lowEnergyTask?.let { listOf(it) } ?: emptyList() }
+}
+
+private fun energyTodoCopy(energy: String): String = when (energy) {
+    "very low" -> "No shame. Here are the tiniest useful resets."
+    "low" -> "A small reset still counts. Keep it short."
+    "high" -> "You have room for a bigger reset if you want it."
+    else -> "A few manageable chores, not the whole house."
+}
+
+private fun repeatLabel(frequency: String): String = when (frequency) {
+    "one-time" -> "once"
+    "daily" -> "daily"
+    "every few days" -> "3 days"
+    "weekly" -> "weekly"
+    "monthly" -> "monthly"
+    else -> frequency
+}
+
+private fun repeatPreview(frequency: String): String = when (frequency) {
+    "daily" -> "tomorrow"
+    "every few days" -> "in about 3 days"
+    "weekly" -> "next week"
+    "monthly" -> "next month"
+    else -> "only when you add it again"
+}
+
+private fun dueChoiceLabel(choice: String): String = when (choice) {
+    "today" -> "today"
+    "tomorrow" -> "tomorrow"
+    "next week" -> "next week"
+    "none" -> "when you choose it"
+    else -> choice
+}
+
+private fun nextDueLabel(task: CleaningTaskEntity, today: LocalDate): String = when {
+    task.nextDueAt == null -> "One-time task"
+    task.nextDueAt.isBefore(today) -> "Overdue - repeats ${repeatLabel(task.frequencyType)}"
+    task.nextDueAt == today -> "Due today - repeats ${repeatLabel(task.frequencyType)}"
+    task.nextDueAt == today.plusDays(1) -> "Due tomorrow - repeats ${repeatLabel(task.frequencyType)}"
+    else -> "Due ${task.nextDueAt.format(DateTimeFormatter.ofPattern("MMM d"))} - repeats ${repeatLabel(task.frequencyType)}"
+}
+
+@Composable
+private fun taskEnergyColor(task: CleaningTaskEntity): Color = when (task.energyRequired) {
+    "low" -> TidyLeaf
+    "medium" -> TidyAqua
+    else -> TidyCoral
+}
+
+@Composable
+private fun tidyButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = TidyAqua,
+    contentColor = Color(0xFF101816)
+)
+
+@Composable
+private fun tidyTonalButtonColors() = ButtonDefaults.filledTonalButtonColors(
+    containerColor = TidyDeepTeal,
+    contentColor = Cream
+)
 
 private fun planLabel(task: CleaningTaskEntity, state: TidyPilotState): String =
     PlanningEngine.displayLabelFor(

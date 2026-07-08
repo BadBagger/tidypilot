@@ -148,6 +148,9 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
     suspend fun skipTask(task: CleaningTaskEntity) = dao.skipTask(task.id, LocalDateTime.now())
     suspend fun snoozeTask(task: CleaningTaskEntity) = dao.snoozeTask(task.id, LocalDate.now().plusDays(1), LocalDateTime.now())
     suspend fun setScanFeedback(scanId: String, feedback: String) = dao.setScanFeedback(scanId, feedback)
+    suspend fun markScanReviewed(scanId: String) = dao.markScanReviewed(scanId)
+    suspend fun updateScanIssueStatus(issueId: String, status: String, createdTaskId: String? = null) =
+        dao.updateScanIssueStatus(issueId, status, createdTaskId)
     suspend fun updateSettings(settings: AppSettingsEntity) = dao.saveSettings(settings)
 
     suspend fun clearScanData() {
@@ -173,6 +176,10 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
             imageUri = imageUri,
             tidyScore = output.tidyScore,
             messScore = output.messScore,
+            messLevel = output.messLevel.key,
+            confidence = output.confidence,
+            summary = output.summary,
+            detectedZones = pipe(output.detectedZones.map { "${it.type}:${it.name}:${it.clutterScore}:${it.notes}" }),
             detectedIssueTags = pipe(output.issues.map { it.tag }),
             estimatedCleanupMinutes = output.estimatedCleanupMinutes,
             confidenceSummary = output.confidenceSummary,
@@ -184,11 +191,16 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
             dao.saveIssue(
                 ScanIssueEntity(
                     scanId = scan.id,
+                    roomId = room.id,
                     tag = issue.tag,
+                    title = issue.label,
+                    description = issue.description,
+                    category = issue.category,
                     label = issue.label,
                     confidence = issue.confidence,
                     suggestedAction = issue.suggestedAction,
                     estimatedMinutes = issue.estimatedMinutes,
+                    difficulty = issue.difficulty,
                     energyLevel = issue.energyLevel
                 )
             )

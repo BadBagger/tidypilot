@@ -20,7 +20,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ScanIssueEntity::class,
         AppSettingsEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -63,13 +63,34 @@ abstract class TidyPilotDatabase : RoomDatabase() {
             }
         }
 
+        private val migration5To6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE room_photo_scans ADD COLUMN messLevel TEXT NOT NULL DEFAULT 'quick_reset'")
+                db.execSQL("ALTER TABLE room_photo_scans ADD COLUMN confidence TEXT NOT NULL DEFAULT 'medium'")
+                db.execSQL("ALTER TABLE room_photo_scans ADD COLUMN summary TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE room_photo_scans ADD COLUMN detectedZones TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE room_photo_scans ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN roomId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN title TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN category TEXT NOT NULL DEFAULT 'general'")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'easy'")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN status TEXT NOT NULL DEFAULT 'suggested'")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN createdTaskId TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE scan_issues ADD COLUMN createdAt TEXT NOT NULL DEFAULT '1970-01-01T00:00:00'")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN saveProcessedScanImages INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN requireScanReview INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultScanConfidenceThreshold TEXT NOT NULL DEFAULT 'medium'")
+            }
+        }
+
         fun get(context: Context): TidyPilotDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     TidyPilotDatabase::class.java,
                     "tidypilot.db"
-                ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5).build().also { instance = it }
+                ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6).build().also { instance = it }
             }
     }
 }

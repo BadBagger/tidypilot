@@ -106,11 +106,16 @@ data class RoomPhotoScanEntity(
     val scanDate: LocalDateTime = LocalDateTime.now(),
     val tidyScore: Int,
     val messScore: Int,
+    val messLevel: String = "quick_reset",
+    val confidence: String = "medium",
+    val summary: String = "",
+    val detectedZones: String = "",
     val detectedIssueTags: String,
     val suggestedTaskIds: String = "",
     val estimatedCleanupMinutes: Int,
     val confidenceSummary: String,
     val userFeedback: String = "",
+    val reviewed: Boolean = false,
     val note: String = "",
     val createdAt: LocalDateTime = LocalDateTime.now()
 )
@@ -119,12 +124,20 @@ data class RoomPhotoScanEntity(
 data class ScanIssueEntity(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val scanId: String,
+    val roomId: String = "",
     val tag: String,
+    val title: String = "",
+    val description: String = "",
+    val category: String = "general",
     val label: String,
     val confidence: Float,
     val suggestedAction: String,
     val estimatedMinutes: Int,
-    val energyLevel: String
+    val difficulty: String = "easy",
+    val energyLevel: String,
+    val status: String = "suggested",
+    val createdTaskId: String? = null,
+    val createdAt: LocalDateTime = LocalDateTime.now()
 )
 
 @Entity(tableName = "app_settings")
@@ -146,6 +159,9 @@ data class AppSettingsEntity(
     val dayOffReminderBehavior: String = "morning reset",
     val minimumExhaustedTaskMinutes: Int = 5,
     val savePhotosLocally: Boolean = true,
+    val saveProcessedScanImages: Boolean = false,
+    val requireScanReview: Boolean = true,
+    val defaultScanConfidenceThreshold: String = "medium",
     val themeMode: String = "system"
 )
 

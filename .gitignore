@@ -1,5 +1,7 @@
 .gradle/
 .codex-remote-attachments/
+.local-scan-fixtures/
+.local-vision-datasets/
 .idea/
 build/
 app/build/

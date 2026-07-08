@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.3-scan-detail`
+- Current release target: `v0.1.4-mess-detection`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -23,10 +23,12 @@ static chore lists fail.
 - Add/Edit supports cleaning tasks, rooms, and work shifts.
 - Detail supports task actions and photo scan detail.
 - Room Photo Scan saves local photos through a FileProvider and runs a local v1
-  analyzer abstraction.
-- Photo Analysis Results shows tidy score, mess score, detected issue tags,
-  suggested actions, estimated cleanup time, energy recommendation, feedback,
-  and add-to-plan actions.
+  analyzer abstraction with mess-level detection, confidence labels, detected
+  zones, photo quality guidance, review controls, and task creation from scan
+  issues.
+- Photo Analysis Results shows mess level, tidy score, mess score, detected
+  issue cards, suggested actions, estimated cleanup time, energy recommendation,
+  feedback, and add-to-plan actions.
 - Work Schedule and Room Management are first-class flows.
 - Work Schedule includes local schedule-photo OCR import with editable text and
   review-before-save shift previews.
@@ -48,14 +50,17 @@ no tracking, no paid API, and no network upload in v1.
 
 ## Build Verification
 
-- `:app:testDebugUnitTest` passed on 2026-07-07 with scanner and planning JVM tests.
+- `:app:testDebugUnitTest` passed on 2026-07-07 with scanner, room score,
+  planning, and online-reference scanner fixture tests.
 - `:app:assembleDebug` passed on 2026-07-07 with the known local Android
   toolchain.
 - `:app:assembleRelease` passed on 2026-07-07 with the known local Android
   toolchain.
-- Release `v0.1.3-scan-detail` is the current release target. It adds broader
-  room scan detail, basement/storage/garage analysis, quick room creation from
-  the scan flow, and tests for room-specific analyzer suggestions.
+- Release `v0.1.4-mess-detection` is the current release target. It adds
+  improved local mess-level detection, scan review controls, Room schema
+  migration 5 to 6, local scanner dataset manifests, Kaggle/Open Images/Wikimedia
+  offline dataset tooling, pixel-feature extraction, and a local review contact
+  sheet workflow.
 
 ## DevHub
 

@@ -24,6 +24,7 @@ fun calculateRoomScore(
     val openTasks = roomTasks.size
     val overdueTasks = roomTasks.count { it.nextDueAt?.isBefore(today) == true }
     val roomScanIds = scans.filter { it.roomId == room.id }.map { it.id }.toSet()
+    val latestScan = scans.filter { it.roomId == room.id }.maxByOrNull { it.scanDate }
     val openIssues = issues.count { it.scanId in roomScanIds }
     val taskIds = roomTasks.map { it.id }.toSet()
     val lastCompleted = completions
@@ -55,6 +56,7 @@ fun calculateRoomScore(
         (openTasks * 4).coerceAtMost(24) -
         (overdueTasks * 8).coerceAtMost(24) -
         (openIssues * 6).coerceAtMost(24) -
+        ((latestScan?.messScore ?: 0) / 5).coerceAtMost(20) -
         completionPenalty -
         priorityPenalty
     ).coerceIn(0, 100)

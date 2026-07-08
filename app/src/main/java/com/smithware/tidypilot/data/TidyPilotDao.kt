@@ -97,6 +97,12 @@ interface TidyPilotDao {
     @Query("UPDATE room_photo_scans SET userFeedback = :feedback WHERE id = :scanId")
     suspend fun setScanFeedback(scanId: String, feedback: String)
 
+    @Query("UPDATE room_photo_scans SET reviewed = 1 WHERE id = :scanId")
+    suspend fun markScanReviewed(scanId: String)
+
+    @Query("UPDATE scan_issues SET status = :status, createdTaskId = :createdTaskId WHERE id = :issueId")
+    suspend fun updateScanIssueStatus(issueId: String, status: String, createdTaskId: String? = null)
+
     @Query("DELETE FROM scan_issues")
     suspend fun clearScanIssues()
 

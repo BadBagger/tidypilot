@@ -69,6 +69,46 @@ class RoomScoreCalculatorTest {
         assertEquals("Good", score.label)
     }
 
+    @Test
+    fun heavyRecentScanLowersRoomScore() {
+        val scan = RoomPhotoScanEntity(
+            id = "heavy-scan",
+            roomId = kitchen.id,
+            imageUri = "demo://kitchen",
+            tidyScore = 18,
+            messScore = 82,
+            messLevel = "heavy_reset",
+            confidence = "medium",
+            summary = "Bigger reset suggested.",
+            detectedIssueTags = "floor_clutter|trash_visible",
+            estimatedCleanupMinutes = 30,
+            confidenceSummary = "Estimated from scan review."
+        )
+
+        val score = calculateRoomScore(
+            room = kitchen.copy(priority = "normal"),
+            tasks = emptyList(),
+            scans = listOf(scan),
+            issues = listOf(
+                ScanIssueEntity(
+                    scanId = scan.id,
+                    roomId = kitchen.id,
+                    tag = "floor_clutter",
+                    label = "Floor clutter",
+                    confidence = 0.7f,
+                    suggestedAction = "Clear floor path",
+                    estimatedMinutes = 8,
+                    energyLevel = "low"
+                )
+            ),
+            completions = emptyList(),
+            today = today
+        )
+
+        assertTrue(score.score < 75)
+        assertEquals("Needs attention", score.label)
+    }
+
     private fun task(id: String, due: LocalDate) = CleaningTaskEntity(
         id = id,
         name = id,

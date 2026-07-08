@@ -316,6 +316,15 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch { repository.setScanFeedback(scanId, feedback) }
     }
 
+    fun markScanReviewed(scanId: String) {
+        viewModelScope.launch { repository.markScanReviewed(scanId) }
+    }
+
+    fun updateScanIssueStatus(issueId: String, status: String, createdTaskId: String? = null) {
+        if (issueId.startsWith("manual-")) return
+        viewModelScope.launch { repository.updateScanIssueStatus(issueId, status, createdTaskId) }
+    }
+
     fun updateSettings(settings: AppSettingsEntity, themeMode: String, reminders: Boolean, savePhotos: Boolean) {
         viewModelScope.launch {
             repository.updateSettings(settings.copy(themeMode = themeMode, reminderEnabled = reminders, savePhotosLocally = savePhotos))

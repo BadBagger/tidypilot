@@ -1493,19 +1493,17 @@ private fun RoomPhotoScanScreen(state: TidyPilotState, viewModel: TidyPilotViewM
     }
 
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val room = selectedRoom
         val uri = pendingUri
-        if (ok && room != null && uri != null) {
-            startLocalScan(room, uri, note)
+        if (ok && uri != null) {
+            scope.launch { snackbar.showSnackbar("Photo ready. Review it, then run local analysis.") }
         } else {
             scope.launch { snackbar.showSnackbar("Photo was not saved. You can retake it.") }
         }
     }
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        val room = selectedRoom
-        if (uri != null && room != null) {
+        if (uri != null) {
             pendingUri = uri
-            startLocalScan(room, uri, note)
+            scope.launch { snackbar.showSnackbar("Photo ready. Review it, then run local analysis.") }
         } else {
             scope.launch { snackbar.showSnackbar("Choose a room and photo to run a scan.") }
         }
@@ -1590,6 +1588,7 @@ private fun RoomPhotoScanScreen(state: TidyPilotState, viewModel: TidyPilotViewM
             StudioCard {
                 Text("Photo source", fontWeight = FontWeight.Black)
                 Text("Camera access is only used to capture a room photo for local analysis. No upload, no account, no network AI.")
+                Text("Try stepping back to capture more of the room. Lighting, blur, glare, or close-up photos can make suggestions less accurate.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(onClick = { permission.launch(Manifest.permission.CAMERA) }) {
                         Icon(Icons.Default.CameraAlt, null)
@@ -1630,6 +1629,20 @@ private fun RoomPhotoScanScreen(state: TidyPilotState, viewModel: TidyPilotViewM
                     } else {
                         Text("Sample scan preview")
                     }
+                    photoQualityNotes(note, uri.toString()).forEach {
+                        Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = {
+                            val room = selectedRoom
+                            if (room == null) {
+                                scope.launch { snackbar.showSnackbar("Choose a room before analyzing.") }
+                            } else {
+                                startLocalScan(room, uri, note)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Analyze locally") }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(onClick = { permission.launch(Manifest.permission.CAMERA) }, modifier = Modifier.weight(1f)) { Text("Retake") }
                         FilledTonalButton(onClick = { pickPhoto.launch("image/*") }, modifier = Modifier.weight(1f)) { Text("Choose another") }
@@ -1708,7 +1721,7 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                     action = issue.suggestedAction,
                     minutes = issue.estimatedMinutes.toString(),
                     energy = issue.energyLevel,
-                    status = "review",
+                    status = issue.status.ifBlank { "review" }.replace("suggested", "review"),
                     editing = false,
                     confidence = issue.confidence
                 )
@@ -1721,31 +1734,35 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
             return false
         }
         val minutes = draft.minutes.toIntOrNull()?.coerceAtLeast(1) ?: 5
+        val task = CleaningTaskEntity(
+            name = draft.action,
+            roomId = room.id,
+            description = "Suggested from room scan: ${draft.label}",
+            priority = if (draft.energy == "low") "normal" else "high",
+            estimatedMinutes = minutes,
+            difficulty = scanDraftDifficulty(draft),
+            energyRequired = draft.energy,
+            frequencyType = "one-time",
+            preferredTime = "anytime",
+            isQuickResetTask = minutes <= 10 && draft.energy == "low",
+            isDeepCleanTask = minutes >= 30 || draft.energy == "high",
+            photoDetectableCategory = draft.tag,
+            nextDueAt = LocalDate.now()
+        )
         viewModel.saveTask(
             null,
-            CleaningTaskEntity(
-                name = draft.action,
-                roomId = room.id,
-                description = "Suggested from room scan: ${draft.label}",
-                priority = if (draft.energy == "low") "normal" else "high",
-                estimatedMinutes = minutes,
-                difficulty = scanDraftDifficulty(draft),
-                energyRequired = draft.energy,
-                frequencyType = "one-time",
-                preferredTime = "anytime",
-                isQuickResetTask = minutes <= 10 && draft.energy == "low",
-                isDeepCleanTask = minutes >= 30 || draft.energy == "high",
-                photoDetectableCategory = draft.tag,
-                nextDueAt = LocalDate.now()
-            )
+            task
         )
+        viewModel.updateScanIssueStatus(draft.sourceIssueId, "accepted", task.id)
         return true
     }
 
-    fun createTasksFromDrafts(makePlan: Boolean) {
-        val selected = drafts.filter { it.status == "review" && it.action.isNotBlank() }
+    fun createTasksFromDrafts(makePlan: Boolean, quickOnly: Boolean = false) {
+        val selected = drafts.filter {
+            it.status == "review" && it.action.isNotBlank() && (!quickOnly || ((it.minutes.toIntOrNull() ?: 99) <= 10 && it.energy == "low"))
+        }
         if (room == null || selected.isEmpty()) {
-            scope.launch { snackbar.showSnackbar("Select at least one useful action first.") }
+            scope.launch { snackbar.showSnackbar(if (quickOnly) "No quick low-energy suggestions are ready." else "Select at least one useful action first.") }
             return
         }
         selected.forEach { draft -> createTaskFromDraft(draft) }
@@ -1766,25 +1783,51 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                 if (scan.imageUri.startsWith("content://")) {
                     Image(rememberAsyncImagePainter(Uri.parse(scan.imageUri)), null, Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
                 }
-                Text("Local scan complete", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("Tidy score ${scan.tidyScore}/100 - mess score ${scan.messScore}/100", fontWeight = FontWeight.Black)
-                LinearProgressIndicator(progress = { scan.tidyScore / 100f }, modifier = Modifier.fillMaxWidth())
-                Text(scan.confidenceSummary)
+                Text("Mess level detection", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(messLevelLabel(scan.messLevel), color = messLevelColor(scan.messLevel), fontWeight = FontWeight.Black)
+                    Text("Confidence: ${scan.confidence}", color = confidenceColor(scan.confidence))
+                }
+                Text("Mess score ${scan.messScore}/100", fontWeight = FontWeight.Black)
+                LinearProgressIndicator(progress = { scan.messScore / 100f }, modifier = Modifier.fillMaxWidth())
+                Text(scan.summary.ifBlank { scan.confidenceSummary })
+                if (drafts.isNotEmpty()) {
+                    Text("Start here: ${drafts.first().action}", fontWeight = FontWeight.SemiBold)
+                }
+                Text("Scan results are estimates. Review before creating tasks.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Photos stay on this device.", color = Sage, fontWeight = FontWeight.Black)
+            }
+        }
+        item {
+            StudioCard {
+                Text("Detected zones", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                val zones = scan.detectedZones.unpipe()
+                if (zones.isEmpty()) {
+                    Text("Room view - Needs review", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    zones.forEach { zone ->
+                        val parts = zone.split(":")
+                        val name = parts.getOrNull(1) ?: parts.firstOrNull().orEmpty()
+                        val score = parts.getOrNull(2)?.toIntOrNull()
+                        Text("${name.ifBlank { "Room area" }}${score?.let { " - $it/100 clutter estimate" } ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
         item { SectionHeader("Review detected issues", "Review before adding. These are local estimates, not perfect detection.") }
         item {
             StudioCard {
                 Text("${scan.estimatedCleanupMinutes} minutes estimated - ${energyRecommendation(issues)} energy recommended", fontWeight = FontWeight.Black)
-                Text("Possible scan findings can be edited or ignored before they become chores.")
+                Text("Possible scan findings can be edited or ignored before they become chores. No shame — make it manageable.")
                 WrapButtons(
                     "Create all suggested tasks" to { createTasksFromDrafts(false) },
+                    "Create only quick tasks" to { createTasksFromDrafts(false, quickOnly = true) },
                     "Ignore all low-confidence issues" to {
                         var ignored = 0
                         drafts.indices.forEach { index ->
                             if (confidenceLabel(drafts[index].confidence) == "low" && drafts[index].status == "review") {
                                 drafts[index] = drafts[index].copy(status = "ignored", editing = false)
+                                viewModel.updateScanIssueStatus(drafts[index].sourceIssueId, "ignored")
                                 ignored++
                             }
                         }
@@ -1815,8 +1858,14 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                             scope.launch { snackbar.showSnackbar("Edit the suggested task before creating it.") }
                         }
                     },
-                    onIgnore = { drafts[index] = draft.copy(status = "ignored", editing = false) },
-                    onHandled = { drafts[index] = draft.copy(status = "handled", editing = false) }
+                    onIgnore = {
+                        drafts[index] = draft.copy(status = "ignored", editing = false)
+                        viewModel.updateScanIssueStatus(draft.sourceIssueId, "ignored")
+                    },
+                    onHandled = {
+                        drafts[index] = draft.copy(status = "handled", editing = false)
+                        viewModel.updateScanIssueStatus(draft.sourceIssueId, "completed")
+                    }
                 )
             }
         }
@@ -1855,6 +1904,18 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                 )
                 Text("Was the analysis helpful?", fontWeight = FontWeight.Bold)
                 WrapButtons(
+                    "Mark reviewed" to {
+                        viewModel.markScanReviewed(scan.id)
+                        scope.launch { snackbar.showSnackbar("Scan marked reviewed.") }
+                    },
+                    "Mess level too high" to {
+                        viewModel.setScanFeedback(scan.id, "mess level too high")
+                        scope.launch { snackbar.showSnackbar("Correction saved.") }
+                    },
+                    "Mess level too low" to {
+                        viewModel.setScanFeedback(scan.id, "mess level too low")
+                        scope.launch { snackbar.showSnackbar("Correction saved.") }
+                    },
                     "Accurate" to {
                         viewModel.setScanFeedback(scan.id, "accurate")
                         scope.launch { snackbar.showSnackbar("Feedback saved.") }
@@ -1866,6 +1927,10 @@ private fun PhotoResultsScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
                     "Inaccurate" to {
                         viewModel.setScanFeedback(scan.id, "inaccurate")
                         scope.launch { snackbar.showSnackbar("Feedback saved.") }
+                    },
+                    "Wrong room" to {
+                        viewModel.setScanFeedback(scan.id, "wrong room")
+                        scope.launch { snackbar.showSnackbar("Correction saved.") }
                     }
                 )
             }
@@ -1896,6 +1961,7 @@ private fun ScanIssueEditor(
             "Suggested" to draft.action,
             "Estimated time" to "${draft.minutes.ifBlank { "5" }} min",
             "Difficulty" to difficulty,
+            "Energy" to draft.energy,
             "Status" to draft.status
         )
         Text("Suggested: ${draft.action.ifBlank { "Add a task before creating" }}", fontWeight = FontWeight.SemiBold)
@@ -2052,6 +2118,34 @@ private fun confidenceColor(label: String) = when (label) {
     "high" -> Sage
     "medium" -> MutedOrange
     else -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+private fun messLevelLabel(level: String): String = when (level) {
+    "clear" -> "Looks mostly clear"
+    "light_reset" -> "Quick reset"
+    "moderate_mess" -> "Needs attention"
+    "heavy_reset" -> "Bigger reset"
+    else -> "Needs review"
+}
+
+@Composable
+private fun messLevelColor(level: String) = when (level) {
+    "clear" -> Sage
+    "light_reset" -> Sage
+    "moderate_mess" -> MutedOrange
+    "heavy_reset" -> MutedOrange
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+private fun photoQualityNotes(note: String, imageUri: String): List<String> {
+    val lower = "$note $imageUri".lowercase()
+    val notes = mutableListOf("Review suggestions before creating tasks.")
+    if (lower.containsAny("blurry", "blur")) notes += "This photo is a little blurry."
+    if (lower.containsAny("dark", "dim")) notes += "Lighting may make detection less accurate."
+    if (lower.containsAny("glare", "bright")) notes += "Glare or bright light may hide some clutter."
+    if (lower.containsAny("close", "corner")) notes += "Try stepping back to capture more of the room."
+    if (notes.size == 1) notes += "Try to include the main floor path and surfaces."
+    return notes
 }
 
 private fun scanDraftDifficulty(draft: ScanIssueDraft): String {
@@ -2429,6 +2523,9 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
     var quietStart by remember(state.settings) { mutableStateOf(state.settings.quietHoursStart) }
     var quietEnd by remember(state.settings) { mutableStateOf(state.settings.quietHoursEnd) }
     var savePhotos by remember(state.savePhotosLocally) { mutableStateOf(state.savePhotosLocally) }
+    var saveProcessedImages by remember(state.settings) { mutableStateOf(state.settings.saveProcessedScanImages) }
+    var requireScanReview by remember(state.settings) { mutableStateOf(state.settings.requireScanReview) }
+    var scanConfidenceThreshold by remember(state.settings) { mutableStateOf(state.settings.defaultScanConfidenceThreshold) }
     var theme by remember(state.themeMode) { mutableStateOf(state.themeMode) }
     var confirmDeleteAll by rememberSaveable { mutableStateOf(false) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -2462,6 +2559,9 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
                 quietHoursStart = quietStart.ifBlank { "21:00" },
                 quietHoursEnd = quietEnd.ifBlank { "08:00" },
                 savePhotosLocally = savePhotos,
+                saveProcessedScanImages = saveProcessedImages,
+                requireScanReview = requireScanReview,
+                defaultScanConfidenceThreshold = scanConfidenceThreshold,
                 themeMode = theme
             ),
             theme,
@@ -2509,13 +2609,21 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
         item {
             StudioCard {
                 Text("Photos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                PreferenceRow("Save room photos", "Photos stay on this device for local scans.", savePhotos) { savePhotos = it }
-                Text("Room photos are never uploaded. Scan results are local suggestions you can review before creating tasks.")
+                PreferenceRow("Save original room photos", "Photos stay on this device for local scans.", savePhotos) { savePhotos = it }
+                PreferenceRow("Save processed scan images", "Reserved for future local-only crops or previews.", saveProcessedImages) { saveProcessedImages = it }
+                PreferenceRow("Require review before tasks", "Scan suggestions stay editable before becoming chores.", requireScanReview) { requireScanReview = it }
+                Text("Default scan confidence threshold")
+                OptionChips(listOf("low", "medium", "high"), scanConfidenceThreshold) { scanConfidenceThreshold = it }
+                Text("Room photos are never uploaded. Scan results are estimates, and TidyPilot asks you to review suggestions before creating tasks.")
                 FilledTonalButton(onClick = {
                     val deleted = deleteSavedScanPhotos(context)
                     viewModel.clearScanData()
                     actionNote = if (deleted) "Saved scan photos and scan results deleted." else "Scan results deleted. Some photo files may already be gone."
                 }) { Text("Delete saved scan photos") }
+                FilledTonalButton(onClick = {
+                    viewModel.clearScanData()
+                    actionNote = "Scan history deleted."
+                }) { Text("Delete scan history") }
             }
         }
         item {

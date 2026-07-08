@@ -360,6 +360,7 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
     // while preserving a clean replacement point for future on-device ML or approved services.
     override fun analyze(room: RoomEntity, note: String, imageUri: String): AnalysisOutput {
         val lower = "${room.roomType} ${room.name} $note".lowercase()
+        val userProvidedContext = note.isNotBlank()
         val issues = mutableListOf<AnalysisIssue>()
         fun add(tag: String, label: String, action: String, minutes: Int, energy: String, confidence: Float) {
             issues += AnalysisIssue(tag, label, action, minutes, energy, confidence)
@@ -378,6 +379,10 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
             if (lower.hasAny("towel", "towels", "laundry")) add("bathroom_towels_visible", "Towels visible", "Gather towels into laundry", 5, "low", 0.6f)
             if (lower.hasAny("shower", "tub")) add("shower_reset_needed", "Shower or tub reset", "Do one shower/tub reset pass", 12, "medium", 0.56f)
             add("wipe_needed", "Visible need for wiping", "Wipe sink and faucet", 5, "low", 0.63f)
+            if (!userProvidedContext) {
+                add("bathroom_counter_mess", "Possible bathroom counter reset", "Review the counter and gather loose items", 6, "low", 0.44f)
+                add("floor_clutter", "Possible bathroom floor reset", "Clear one bathroom floor area", 5, "low", 0.42f)
+            }
         }
         if ("bed" in lower) {
             if (lower.hasAny("bed", "unmade", "blanket", "sheets")) add("unmade_bed", "Bed reset needed", "Make the bed good enough", 4, "low", 0.67f)
@@ -385,6 +390,11 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
             if (lower.hasAny("nightstand", "dresser", "surface", "desk")) add("bedroom_surface_clutter", "Bedroom surface clutter", "Reset one bedside or dresser surface", 7, "low", 0.6f)
             if (lower.hasAny("floor", "shoes", "bags")) add("floor_clutter", "Bedroom floor clutter", "Clear one bedroom floor zone", 8, "medium", 0.59f)
             if (lower.hasAny("closet", "boxes", "storage")) add("closet_or_box_clutter", "Closet or box clutter", "Group bedroom storage items together", 10, "medium", 0.55f)
+            if (!userProvidedContext) {
+                add("laundry_visible", "Possible laundry visible", "Put visible clothes in one basket", 5, "low", 0.45f)
+                add("floor_clutter", "Possible bedroom floor clutter", "Clear one bedroom floor zone", 8, "medium", 0.44f)
+                add("bedroom_surface_clutter", "Possible bedroom surface clutter", "Reset one bedside or dresser surface", 7, "low", 0.42f)
+            }
         }
         if ("living" in lower || "family room" in lower || "den" in lower) {
             if (lower.hasAny("floor", "toys", "clutter")) add("floor_clutter", "Living room floor clutter", "Pick up one living room floor zone", 8, "low", 0.62f)
@@ -404,6 +414,12 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
             if (lower.hasAny("fold", "basket", "clean clothes")) add("folding_needed", "Folding needed", "Fold one small laundry stack", 12, "medium", 0.6f)
             if (lower.hasAny("floor", "clothes")) add("laundry_visible", "Laundry visible", "Put floor clothes in one basket", 6, "low", 0.62f)
             if (lower.hasAny("surface", "top", "shelf")) add("laundry_surface_clutter", "Laundry surface clutter", "Clear the washer or shelf top", 5, "low", 0.56f)
+        }
+        if ("office" in lower || "desk" in lower) {
+            if (lower.hasAny("desk", "paper", "papers", "notebooks", "surface", "clutter")) add("office_desk_clutter", "Desk clutter", "Clear one desk section", 8, "low", 0.66f)
+            if (lower.hasAny("cord", "cords", "electronics", "laptop", "charger")) add("electronics_clutter", "Electronics or cords visible", "Group cords and electronics", 6, "low", 0.58f)
+            if (lower.hasAny("floor", "scattered", "stools", "boxes")) add("floor_clutter", "Office floor clutter", "Clear one floor path", 8, "low", 0.58f)
+            if (lower.hasAny("trash", "packaging")) add("trash_visible", "Trash or packaging visible", "Collect trash into one bag", 5, "low", 0.55f)
         }
         if ("basement" in lower || "storage" in lower || "garage" in lower) {
             if (lower.hasAny("floor", "walking path", "path", "walkway", "open space")) {
@@ -435,22 +451,161 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
         }
         val distinct = issues.distinctBy { it.tag }.take(8)
         val estimated = distinct.sumOf { it.estimatedMinutes }.coerceAtMost(60)
+        val weightedIssueMess = distinct.sumOf { it.messWeight() }
+        val severityMess = when {
+            lower.hasAny("trashed", "disaster", "super untidy", "very messy", "rough", "bad", "overwhelming") -> 42
+            lower.hasAny("messy", "untidy", "cluttered", "needs bigger reset", "needs reset") -> 28
+            lower.hasAny("floor clutter", "laundry visible", "trash visible", "sink full", "full sink", "overloaded sink", "pile", "blocked", "shelves cluttered") -> 18
+            else -> 0
+        }
+        val existingRoomMess = (100 - room.tidyScore).coerceIn(0, 55)
+        val unknownPhotoMessFloor = when {
+            userProvidedContext -> 20
+            lower.hasAny("bed", "basement", "storage", "garage", "laundry") -> 48
+            else -> 42
+        }
         val contextMess = when {
             "basement" in lower && ("super untidy" in lower || "rough" in lower || "bad" in lower || "needs reset" in lower) -> 38
             "basement" in lower || "storage" in lower || "garage" in lower -> 28
             "rough" in lower || "needs reset" in lower -> 15
             else -> 0
         }
-        val mess = (distinct.size * 10 + contextMess).coerceIn(20, 88)
+        val rawMess = maxOf(weightedIssueMess + contextMess + severityMess, existingRoomMess, unknownPhotoMessFloor)
+        val mess = rawMess.coerceIn(20, 92)
+        val messLevel = messLevelForScore(mess)
+        val confidence = scanConfidenceFor(userProvidedContext, distinct.size, lower)
+        val detectedZones = detectedZonesFor(lower, distinct, messLevel)
+        val summary = summaryForMessLevel(messLevel, distinct, confidence)
         return AnalysisOutput(
             imageUri = imageUri,
             tidyScore = 100 - mess,
             messScore = mess,
+            messLevel = messLevel,
+            confidence = confidence,
+            summary = summary,
+            detectedZones = detectedZones,
             estimatedCleanupMinutes = estimated,
-            confidenceSummary = "Local v1 estimate based on room type, note, and practical household mess patterns.",
+            confidenceSummary = if (userProvidedContext) {
+                "Local v1 estimate based on room type, your visible-photo notes, and practical household mess patterns."
+            } else {
+                "Local v1 estimate. Review or add visible-photo details before turning suggestions into chores."
+            },
             issues = distinct
         )
     }
+}
+
+enum class MessLevel(val key: String, val friendlyLabel: String) {
+    CLEAR("clear", "Looks mostly clear"),
+    LIGHT_RESET("light_reset", "Quick reset"),
+    MODERATE_MESS("moderate_mess", "Needs attention"),
+    HEAVY_RESET("heavy_reset", "Bigger reset")
+}
+
+data class DetectedZone(
+    val name: String,
+    val type: String,
+    val clutterScore: Int,
+    val notes: String
+)
+
+data class PhotoAnalysisResult(
+    val id: String,
+    val roomId: String,
+    val scanId: String,
+    val messLevel: MessLevel,
+    val messScore: Int,
+    val confidence: String,
+    val summary: String,
+    val detectedZones: List<DetectedZone>,
+    val suggestedIssues: List<AnalysisIssue>,
+    val suggestedTasks: List<PhotoSuggestedTask>,
+    val createdAt: java.time.LocalDateTime = java.time.LocalDateTime.now()
+)
+
+data class PhotoSuggestedTask(
+    val title: String,
+    val roomId: String,
+    val estimatedMinutes: Int,
+    val difficulty: String,
+    val energyRequired: String,
+    val priority: String,
+    val source: String = "photo_scan",
+    val notes: String = ""
+)
+
+fun messLevelForScore(messScore: Int): MessLevel = when {
+    messScore < 25 -> MessLevel.CLEAR
+    messScore < 50 -> MessLevel.LIGHT_RESET
+    messScore < 75 -> MessLevel.MODERATE_MESS
+    else -> MessLevel.HEAVY_RESET
+}
+
+fun taskLimitForMessLevel(level: MessLevel): Int = when (level) {
+    MessLevel.CLEAR -> 1
+    MessLevel.LIGHT_RESET -> 2
+    MessLevel.MODERATE_MESS -> 4
+    MessLevel.HEAVY_RESET -> 6
+}
+
+fun filterScanTasksForEnergy(issues: List<AnalysisIssue>, energyLevel: String, level: MessLevel): List<AnalysisIssue> {
+    val limit = taskLimitForMessLevel(level)
+    val filtered = when (energyLevel) {
+        "very low", "low" -> issues.filter { it.energyLevel == "low" && it.estimatedMinutes <= 10 }
+        "high" -> issues
+        else -> issues.filter { it.estimatedMinutes <= 15 || it.energyLevel != "high" }
+    }
+    return filtered.take(limit).ifEmpty { issues.filter { it.estimatedMinutes <= 10 }.take(limit) }
+}
+
+private fun scanConfidenceFor(userProvidedContext: Boolean, issueCount: Int, lower: String): String = when {
+    !userProvidedContext -> "low"
+    lower.hasAny("blurry", "dark", "glare", "too close", "not enough room") -> "low"
+    issueCount >= 4 -> "high"
+    issueCount >= 2 -> "medium"
+    else -> "low"
+}
+
+private fun detectedZonesFor(lower: String, issues: List<AnalysisIssue>, messLevel: MessLevel): List<DetectedZone> {
+    val zones = mutableListOf<DetectedZone>()
+    fun zone(name: String, type: String, score: Int, notes: String) {
+        zones += DetectedZone(name, type, score.coerceIn(0, 100), notes)
+    }
+    if (issues.any { it.tag.contains("floor") || it.tag.contains("path") }) zone("Floor path", "floor", messLevel.zoneScore(), "Visible floor or walking-path reset may help.")
+    if (issues.any { it.tag.contains("surface") || it.tag.contains("counter") || it.tag.contains("shelf") }) zone("Main surface", "general surface", messLevel.zoneScore() - 8, "Start with one surface instead of the whole room.")
+    if (issues.any { it.tag.contains("laundry") || it.tag.contains("folding") }) zone("Laundry area", "laundry", messLevel.zoneScore() - 5, "Clothes or laundry-related items may be a quick visible win.")
+    if (issues.any { it.tag.contains("sink") || it.tag.contains("dishes") }) zone("Sink or dishes", "sink", messLevel.zoneScore(), "Dishes or sink reset can anchor the room.")
+    if ("bed" in lower) zone("Bed area", "bed", messLevel.zoneScore() - 10, "A good-enough bed reset can make the room feel calmer.")
+    if (zones.isEmpty()) zone("Room view", "unknown", messLevel.zoneScore(), "Estimated from scan review and room type.")
+    return zones.distinctBy { it.name }.take(4)
+}
+
+private fun MessLevel.zoneScore(): Int = when (this) {
+    MessLevel.CLEAR -> 15
+    MessLevel.LIGHT_RESET -> 38
+    MessLevel.MODERATE_MESS -> 64
+    MessLevel.HEAVY_RESET -> 88
+}
+
+private fun summaryForMessLevel(level: MessLevel, issues: List<AnalysisIssue>, confidence: String): String {
+    val first = issues.firstOrNull()?.suggestedAction ?: "Start with one small visible reset"
+    val confidenceCopy = if (confidence == "low") " Review before creating tasks." else ""
+    return when (level) {
+        MessLevel.CLEAR -> "Looks mostly clear. A small reset would help keep it easy.$confidenceCopy"
+        MessLevel.LIGHT_RESET -> "Quick reset suggested. Start with one surface or a short visible win.$confidenceCopy"
+        MessLevel.MODERATE_MESS -> "Moderate reset suggested. Start with ${first.lowercase()}, then handle floors or surfaces if you have time.$confidenceCopy"
+        MessLevel.HEAVY_RESET -> "Bigger reset suggested. No shame — start with one small task like ${first.lowercase()} and stop there if that is enough.$confidenceCopy"
+    }
+}
+
+private fun AnalysisIssue.messWeight(): Int = when (tag) {
+    "basement_floor_path", "floor_clutter", "sink_full", "storage_shelf_clutter" -> 18
+    "laundry_visible", "dishes_visible", "trash_visible", "bathroom_counter_mess" -> 16
+    "cluttered_surface", "bedroom_surface_clutter", "living_surface_clutter", "closet_or_box_clutter" -> 14
+    "office_desk_clutter" -> 14
+    "loose_gear_visible", "cords_or_equipment_clutter", "electronics_clutter", "floor_clean_needed" -> 12
+    "unmade_bed", "couch_reset_needed", "bathroom_towels_visible", "laundry_machine_reset", "folding_needed" -> 10
+    else -> 8
 }
 
 private val basementTags = setOf(
@@ -467,6 +622,10 @@ data class AnalysisOutput(
     val imageUri: String,
     val tidyScore: Int,
     val messScore: Int,
+    val messLevel: MessLevel,
+    val confidence: String,
+    val summary: String,
+    val detectedZones: List<DetectedZone>,
     val estimatedCleanupMinutes: Int,
     val confidenceSummary: String,
     val issues: List<AnalysisIssue>
@@ -478,5 +637,12 @@ data class AnalysisIssue(
     val suggestedAction: String,
     val estimatedMinutes: Int,
     val energyLevel: String,
-    val confidence: Float
+    val confidence: Float,
+    val description: String = label,
+    val category: String = tag,
+    val difficulty: String = when {
+        energyLevel == "high" || estimatedMinutes >= 30 -> "hard"
+        energyLevel == "medium" || estimatedMinutes >= 15 -> "medium"
+        else -> "easy"
+    }
 )

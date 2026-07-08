@@ -1,0 +1,10 @@
+source_id,name,url,scale,primary_use,access_notes,license_notes
+places365,Places365,https://github.com/csailvision/places365,1800000,room_type_classifier,Download via official Places365 instructions; filter indoor home categories first,Check official Places365 terms before redistribution
+ade20k,ADE20K,https://ade20k.csail.mit.edu/,27000,zone_and_segmentation_pretraining,Download annotations/images from official ADE20K site or CSAIL GitHub mirror,Use dataset terms; do not commit images
+open_images_v7,Open Images V7,https://storage.googleapis.com/openimages/web/factsfigures_v7.html,9000000,household_object_detection,Filter metadata by household object labels before downloading URLs,Annotations are CC BY 4.0; image licenses vary by source URL
+coco,COCO,https://cocodataset.org/,330000,common_object_detection_baseline,Download official 2017 images/annotations; filter indoor object classes,Annotations CC BY 4.0; images follow source terms
+mit_indoor_scenes,MIT Indoor Scenes,https://www.kaggle.com/datasets/itsahmad/indoor-scenes-cvpr-2019,15620,indoor_room_classifier,Kaggle download may require local Kaggle credentials,Verify Kaggle dataset license before training/reuse
+homeobjects_3k,HomeObjects-3K,https://docs.ultralytics.com/datasets/detect/homeobjects-3k/,3000,home_object_detection,Use Ultralytics dataset instructions,Verify linked dataset license
+ocid,OCID Object Clutter Indoor Dataset,https://www.acin.tuwien.ac.at/en/vision-for-robotics/software-tools/object-clutter-indoor-dataset/,unknown,clutter_segmentation_concepts,Download from TU Wien project page,Verify project terms before reuse
+kaggle_messy_clean,Kaggle Messy vs Clean Room,https://www.kaggle.com/datasets/cdawn1/messy-vs-clean-room,unknown,binary_mess_classifier,Kaggle download may require local Kaggle credentials,Verify Kaggle dataset license before training/reuse
+roboflow_clean_messy,Roboflow Clean vs Messy Room,https://universe.roboflow.com/workspace-zpgzp/clean-vs-messy-room-0lozg,100,validation_smoke_test,Roboflow export may require account/API key; do not hardcode keys,Use Roboflow project license/citation

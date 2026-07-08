@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.10-household-onboarding`
+- Current release target: `v0.1.11-widgets-home-flow`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -17,9 +17,9 @@ static chore lists fail.
 
 ## MVP State
 
-- Dashboard shows today's date, work status, energy check-in, adaptive suggested
-  tasks, quick replanning actions, room scan entry, progress cards, low-energy
-  fallback, and reset plan action.
+- Today is a focused command screen with a time/energy prompt, one recommended
+  next task, compact progress cards, room attention, scan entry, and a separate
+  To-do tab for the full chore list.
 - Add/Edit supports cleaning tasks, rooms, and work shifts.
 - Detail supports task actions and photo scan detail.
 - Onboarding collects a lightweight household profile with rooms, bedroom and
@@ -35,6 +35,8 @@ static chore lists fail.
 - Work Schedule and Room Management are first-class flows.
 - Work Schedule includes local schedule-photo OCR import with editable text and
   review-before-save shift previews.
+- Android widgets include a Today Plan widget and a compact Quick Reset widget
+  backed by local Room data and refreshed after key plan/task updates.
 - Export/Reports provides weekly summary, room progress, skipped tasks, energy
   versus cleaning progress, workday versus day-off progress, scan trends, and
   plain-text export.
@@ -59,9 +61,9 @@ no tracking, no paid API, and no network upload in v1.
   toolchain.
 - `:app:assembleRelease` passed on 2026-07-08 with the known local Android
   toolchain.
-- Release `v0.1.10-household-onboarding` is the current release target. It adds
-  household-aware onboarding, profile-based starter routines, stronger local scan
-  mess cues, and clearer scan summary review controls.
+- Release `v0.1.11-widgets-home-flow` is the current release target. It adds a
+  dedicated To-do tab, simplifies Today into a clearer action prompt, fixes the
+  start-recommended flow, and adds Android Today Plan / Quick Reset widgets.
 
 ## DevHub
 

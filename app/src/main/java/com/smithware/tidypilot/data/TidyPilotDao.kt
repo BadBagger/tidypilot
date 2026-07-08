@@ -50,6 +50,18 @@ interface TidyPilotDao {
     @Query("SELECT COUNT(*) FROM cleaning_tasks WHERE isArchived = 0")
     suspend fun activeTaskCount(): Int
 
+    @Query("SELECT * FROM cleaning_tasks WHERE isArchived = 0 ORDER BY CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END DESC, nextDueAt ASC, estimatedMinutes ASC")
+    suspend fun activeTasksOnce(): List<CleaningTaskEntity>
+
+    @Query("SELECT * FROM cleaning_tasks WHERE isArchived = 0 AND (nextDueAt IS NULL OR nextDueAt <= :today) ORDER BY CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END DESC, estimatedMinutes ASC LIMIT :limit")
+    suspend fun dueTasksOnce(today: LocalDate, limit: Int): List<CleaningTaskEntity>
+
+    @Query("SELECT * FROM energy_check_ins ORDER BY date DESC, createdAt DESC LIMIT 1")
+    suspend fun latestEnergyOnce(): EnergyCheckInEntity?
+
+    @Query("SELECT COUNT(*) FROM task_completions WHERE completedAt >= :start AND completedAt < :end")
+    suspend fun completionCountBetween(start: LocalDateTime, end: LocalDateTime): Int
+
     @Query("SELECT lower(name) || '|' || roomId FROM cleaning_tasks WHERE isArchived = 0")
     suspend fun activeTaskRoomKeys(): List<String>
 

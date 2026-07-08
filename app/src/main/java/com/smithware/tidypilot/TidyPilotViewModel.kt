@@ -151,6 +151,7 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
                     sourceType = result.sourceType
                 )
             )
+            refreshWidgets()
         }
     }
 
@@ -180,6 +181,7 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
                     sourceType = "quick_clean"
                 )
             )
+            refreshWidgets()
         }
     }
 
@@ -193,21 +195,26 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
     fun saveTask(existing: CleaningTaskEntity?, task: CleaningTaskEntity): String? {
         if (task.name.isBlank()) return "Task name is required."
         if (task.roomId.isBlank()) return "Choose a room before saving."
-        viewModelScope.launch { repository.saveTask((existing ?: task).copy(
-            name = task.name.trim(),
-            roomId = task.roomId,
-            description = task.description.trim(),
-            priority = task.priority,
-            estimatedMinutes = task.estimatedMinutes.coerceAtLeast(1),
-            difficulty = task.difficulty.ifBlank { "easy" },
-            energyRequired = task.energyRequired,
-            frequencyType = task.frequencyType,
-            preferredTime = task.preferredTime,
-            isQuickResetTask = task.isQuickResetTask,
-            isDeepCleanTask = task.isDeepCleanTask,
-            photoDetectableCategory = task.photoDetectableCategory,
-            nextDueAt = task.nextDueAt
-        )) }
+        viewModelScope.launch {
+            repository.saveTask(
+                (existing ?: task).copy(
+                    name = task.name.trim(),
+                    roomId = task.roomId,
+                    description = task.description.trim(),
+                    priority = task.priority,
+                    estimatedMinutes = task.estimatedMinutes.coerceAtLeast(1),
+                    difficulty = task.difficulty.ifBlank { "easy" },
+                    energyRequired = task.energyRequired,
+                    frequencyType = task.frequencyType,
+                    preferredTime = task.preferredTime,
+                    isQuickResetTask = task.isQuickResetTask,
+                    isDeepCleanTask = task.isDeepCleanTask,
+                    photoDetectableCategory = task.photoDetectableCategory,
+                    nextDueAt = task.nextDueAt
+                )
+            )
+            refreshWidgets()
+        }
         return null
     }
 
@@ -264,7 +271,12 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun deleteTask(task: CleaningTaskEntity) { viewModelScope.launch { repository.deleteTask(task) } }
+    fun deleteTask(task: CleaningTaskEntity) {
+        viewModelScope.launch {
+            repository.deleteTask(task)
+            replan()
+        }
+    }
     fun deleteRoom(room: RoomEntity) { viewModelScope.launch { repository.deleteRoom(room) } }
     fun archiveRoom(room: RoomEntity) { viewModelScope.launch { repository.archiveRoom(room) } }
     fun deleteShift(shift: WorkShiftEntity) {
@@ -332,6 +344,7 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
             preferences.setThemeMode(themeMode)
             preferences.setRemindersEnabled(reminders)
             preferences.setSavePhotosLocally(savePhotos)
+            refreshWidgets()
         }
     }
 
@@ -386,7 +399,12 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
             preferences.setRemindersEnabled(false)
             preferences.setThemeMode("system")
             preferences.setSavePhotosLocally(true)
+            refreshWidgets()
         }
+    }
+
+    private fun refreshWidgets() {
+        TidyPilotWidgetUpdater.updateAll(getApplication<Application>().applicationContext)
     }
 }
 

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TidyPilot</string>
+    <string name="widget_today_description">Today plan and next useful chores</string>
+    <string name="widget_quick_description">Small reset task for low-friction cleaning</string>
+</resources>

@@ -161,6 +161,7 @@ class MainActivity : ComponentActivity() {
 
 private sealed class Route(val value: String, val label: String, val icon: @Composable () -> Unit) {
     data object Dashboard : Route("dashboard", "Today", { Icon(Icons.Default.Home, null) })
+    data object Todo : Route("todo", "To-do", { Icon(Icons.Default.CheckCircle, null) })
     data object Add : Route("add", "Add/Edit", { Icon(Icons.Default.Add, null) })
     data object Rooms : Route("rooms", "Rooms", { Icon(Icons.Default.RoomPreferences, null) })
     data object Import : Route("import", "Import", { Icon(Icons.Default.CalendarMonth, null) })
@@ -175,7 +176,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
     val snackbar = remember { SnackbarHostState() }
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route ?: Route.Dashboard.value
-    val topLevelRoutes = listOf(Route.Dashboard.value, Route.Add.value, Route.Rooms.value, Route.Import.value, Route.Reports.value, Route.Settings.value)
+    val topLevelRoutes = listOf(Route.Dashboard.value, Route.Todo.value, Route.Add.value, Route.Rooms.value, Route.Reports.value, Route.Settings.value)
     val showBack = current !in topLevelRoutes
     if (!state.onboardingComplete) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
@@ -213,7 +214,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                listOf(Route.Dashboard, Route.Add, Route.Rooms, Route.Import, Route.Reports, Route.Settings).forEach { route ->
+                listOf(Route.Dashboard, Route.Todo, Route.Add, Route.Rooms, Route.Reports, Route.Settings).forEach { route ->
                     NavigationBarItem(
                         selected = current == route.value,
                         onClick = {
@@ -250,6 +251,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
     ) { padding ->
         NavHost(navController = nav, startDestination = Route.Dashboard.value, modifier = Modifier.padding(padding)) {
             composable(Route.Dashboard.value) { DashboardScreen(state, viewModel, nav) }
+            composable(Route.Todo.value) { TodoListScreen(state, viewModel, nav) }
             composable(Route.Add.value) { AddEditScreen(state, viewModel, snackbar) }
             composable("editTask/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
                 AddEditScreen(state, viewModel, snackbar, initialTaskId = entry.arguments?.getString("id"))
@@ -277,6 +279,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
 
 private fun screenTitle(route: String): String = when {
     route == Route.Import.value -> "Import schedule"
+    route == Route.Todo.value -> "To-do"
     route == "schedule" -> "Work schedule"
     route == "energy" -> "Energy check-in"
     route == "scan" -> "Room scan"
@@ -541,10 +544,20 @@ private fun DashboardScreen(state: TidyPilotState, viewModel: TidyPilotViewModel
                 energy = state.latestCheckIn?.energyLevel ?: "medium",
                 minutes = state.latestCheckIn?.availableMinutes ?: 15,
                 recommendedTask = nextTask,
-                onStartRecommended = { nextTask?.let(viewModel::markComplete) },
+                onStartRecommended = { nextTask?.let { nav.navigate("detail/task/${it.id}") } },
                 onOpenRecommended = { nextTask?.let { nav.navigate("detail/task/${it.id}") } },
                 onScan = { nav.navigate("scan") },
                 onReplan = { nav.navigate("energy") }
+            )
+        }
+        item { TodayDecisionCard(state, viewModel, nav) }
+        item {
+            QuickStartCard(
+                task = nextTask,
+                state = state,
+                onStart = { nextTask?.let { nav.navigate("detail/task/${it.id}") } },
+                onOpen = { nextTask?.let { nav.navigate("detail/task/${it.id}") } },
+                onScan = { nav.navigate("scan") }
             )
         }
         item {
@@ -554,42 +567,10 @@ private fun DashboardScreen(state: TidyPilotState, viewModel: TidyPilotViewModel
                 onSchedule = { nav.navigate("schedule") }
             )
         }
-        item { ScheduleImportPromptCard(nav) }
-        item {
-            QuickStartCard(
-                task = nextTask,
-                state = state,
-                onStart = { nextTask?.let(viewModel::markComplete) },
-                onOpen = { nextTask?.let { nav.navigate("detail/task/${it.id}") } },
-                onScan = { nav.navigate("scan") }
-            )
-        }
-        item { EnergyTodoCard(state, viewModel, nav) }
         if (state.tasks.count { !it.isArchived && it.frequencyType != "one-time" } < 8) {
             item { StarterRoutineCard(viewModel) }
         }
-        item { RoutineAutopilotCard(state, viewModel, nav) }
-        item { QuickCleanCard(state, viewModel) }
-        item {
-            SectionHeader("Today's cleaning plan", plan?.adaptedReason ?: "A realistic reset plan for the next useful step.")
-        }
-        if (state.suggestedTasks.isNotEmpty()) {
-            items(state.suggestedTasks.take(4), key = { it.id }) { task -> PlanTaskCard(task, state, viewModel, nav) }
-        } else {
-            item { EmptyState("No chores queued.", "Add a task or run a quick room scan.", "Add task") { nav.navigate(Route.Add.value) } }
-        }
         item { RoomsNeedingAttentionCard(attentionRooms, state, nav) }
-        item { RecentCompletionsCard(state) }
-        item {
-            QuickActions(
-                onExhausted = { viewModel.replan(exhausted = true) },
-                onTen = { viewModel.replan(availableMinutes = 10) },
-                onMore = { viewModel.replan(availableMinutes = 35, energyLevel = "high") },
-                onSkip = { state.suggestedTasks.firstOrNull()?.let(viewModel::skipTask) ?: viewModel.replan() },
-                onReset = { viewModel.replan() },
-                onScan = { nav.navigate("scan") }
-            )
-        }
     }
 }
 
@@ -612,12 +593,12 @@ private fun DashboardHeroCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     BrandMark(Modifier.size(34.dp))
                     Column {
-                        Text("TidyPilot", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                        Text("TidyPilot", color = Graphite, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                         Text("Calm home control", color = TidyDeepTeal, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Text(date.uppercase(), color = MutedOrange, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
                     }
                 }
-                Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text(title, color = Graphite, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     DashboardMetricPill("Plan", planType, Modifier.weight(1.3f))
                     DashboardMetricPill("Energy", energy, Modifier.weight(1f))
@@ -651,6 +632,75 @@ private fun DashboardHeroCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TodayDecisionCard(state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController) {
+    val energy = state.latestCheckIn?.energyLevel ?: state.settings.defaultEnergyLevel
+    StudioCard {
+        Text("What are you up for?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+        Text("Pick a time window. TidyPilot will rebuild the plan around that instead of dumping every chore here.")
+        WrapButtons(
+            "5 min" to { viewModel.quickClean(5, "low"); nav.navigate(Route.Todo.value) },
+            "10 min" to { viewModel.quickClean(10, energy); nav.navigate(Route.Todo.value) },
+            "15 min" to { viewModel.quickClean(15, energy); nav.navigate(Route.Todo.value) },
+            "30 min" to { viewModel.quickClean(30, "high"); nav.navigate(Route.Todo.value) },
+            "I'm exhausted" to { viewModel.replan(exhausted = true); nav.navigate(Route.Todo.value) },
+            "Scan room" to { nav.navigate("scan") }
+        )
+        Text("A small reset still counts. You can change the plan anytime.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun TodoListScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController) {
+    val todayTasks = state.suggestedTasks
+    val energy = state.latestCheckIn?.energyLevel ?: state.settings.defaultEnergyLevel
+    val energyTasks = energyTodoTasks(state, energy).filter { task -> todayTasks.none { it.id == task.id } }
+    val openTasks = (todayTasks + energyTasks + state.tasks)
+        .filter { !it.isArchived }
+        .distinctBy { it.id }
+        .sortedWith(compareBy<CleaningTaskEntity> { it.nextDueAt ?: state.today }.thenBy { it.estimatedMinutes })
+    LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { CompactBrandHeader("To-do", "Your chore list, separated from the home command screen.") }
+        item {
+            StudioCard {
+                Text("Today's plan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text(state.todayPlan?.adaptedReason ?: "Pick a time window from Today to build a focused mini plan.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                WrapButtons(
+                    "5 min" to { viewModel.quickClean(5, "low") },
+                    "10 min" to { viewModel.quickClean(10, energy) },
+                    "30 min" to { viewModel.quickClean(30, "high") },
+                    "Check in" to { nav.navigate("energy") }
+                )
+            }
+        }
+        if (todayTasks.isNotEmpty()) {
+            item { SectionHeader("Recommended next", "Start with these before browsing the full list.") }
+            items(todayTasks.take(5), key = { "today-${it.id}" }) { task -> PlanTaskCard(task, state, viewModel, nav) }
+        }
+        item { SectionHeader("All open chores", "Grouped into one clear list. Complete, skip, or open details.") }
+        if (openTasks.isEmpty()) {
+            item { EmptyState("No chores queued.", "Add a task or run a quick room scan.", "Add task") { nav.navigate(Route.Add.value) } }
+        } else {
+            items(openTasks, key = { "open-${it.id}" }) { task -> TodoTaskRow(task, state, viewModel, nav) }
+        }
+    }
+}
+
+@Composable
+private fun TodoTaskRow(task: CleaningTaskEntity, state: TidyPilotState, viewModel: TidyPilotViewModel, nav: NavHostController) {
+    StudioCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.CheckCircle, null, tint = taskEnergyColor(task), modifier = Modifier.size(24.dp))
+            Column(Modifier.weight(1f)) {
+                Text(task.name, fontWeight = FontWeight.Black)
+                Text(taskMeta(task, state), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+            IconButton(onClick = { viewModel.markComplete(task) }) { Icon(Icons.Default.CheckCircle, "Complete", tint = TidyLeaf) }
+            IconButton(onClick = { nav.navigate("detail/task/${task.id}") }) { Icon(Icons.Default.Edit, "Details") }
         }
     }
 }

@@ -34,8 +34,8 @@ android {
         applicationId = "com.smithware.tidypilot"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.1.5-dashboard-routines"
+        versionCode = 7
+        versionName = "0.1.6-ui-polish"
     }
 
     signingConfigs {

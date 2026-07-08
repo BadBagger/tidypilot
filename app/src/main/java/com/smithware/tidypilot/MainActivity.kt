@@ -177,39 +177,30 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
     }
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        BrandMark(Modifier.size(34.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Column(horizontalAlignment = Alignment.Start) {
-                            Text("TidyPilot", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                            Text(
-                                "Calm home control",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                navigationIcon = {
-                    if (showBack) {
+            if (showBack) {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            screenTitle(current),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    navigationIcon = {
                         IconButton(onClick = {
                             if (!nav.popBackStack()) nav.navigate(Route.Dashboard.value) { launchSingleTop = true }
                         }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                         }
                     }
-                }
-            )
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -227,11 +218,11 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
                         icon = route.icon,
                         label = { Text(route.label) },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Cream,
-                            selectedTextColor = TidyMint,
-                            indicatorColor = TidyDeepTeal,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurface,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurface
+                            selectedIconColor = TidyDeepTeal,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            indicatorColor = TidyMint,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -262,6 +253,18 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
             }
         }
     }
+}
+
+private fun screenTitle(route: String): String = when {
+    route == "schedule" -> "Work schedule"
+    route == "energy" -> "Energy check-in"
+    route == "scan" -> "Room scan"
+    route == "results" -> "Scan results"
+    route.startsWith("editTask") -> "Edit task"
+    route.startsWith("detail/room") -> "Room detail"
+    route.startsWith("detail/task") -> "Task detail"
+    route.startsWith("detail") -> "Details"
+    else -> "TidyPilot"
 }
 
 @Composable
@@ -394,7 +397,7 @@ private fun DashboardScreen(state: TidyPilotState, viewModel: TidyPilotViewModel
     val plan = state.todayPlan
     val nextTask = state.suggestedTasks.firstOrNull() ?: state.lowEnergyTask ?: state.tasks.firstOrNull()
     val attentionRooms = state.rooms.sortedWith(compareBy<RoomEntity> { roomScore(it, state).score }.thenByDescending { priorityScore(it.priority) }).take(3)
-    LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             DashboardHeroCard(
                 date = todayText,
@@ -402,6 +405,9 @@ private fun DashboardScreen(state: TidyPilotState, viewModel: TidyPilotViewModel
                 planType = plan?.planType ?: "adaptive daily plan",
                 energy = state.latestCheckIn?.energyLevel ?: "medium",
                 minutes = state.latestCheckIn?.availableMinutes ?: 15,
+                recommendedTask = nextTask,
+                onStartRecommended = { nextTask?.let(viewModel::markComplete) },
+                onOpenRecommended = { nextTask?.let { nav.navigate("detail/task/${it.id}") } },
                 onScan = { nav.navigate("scan") },
                 onReplan = { nav.navigate("energy") }
             )
@@ -455,35 +461,54 @@ private fun DashboardHeroCard(
     planType: String,
     energy: String,
     minutes: Int,
+    recommendedTask: CleaningTaskEntity?,
+    onStartRecommended: () -> Unit,
+    onOpenRecommended: () -> Unit,
     onScan: () -> Unit,
     onReplan: () -> Unit
 ) {
     Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Charcoal), modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.background(Brush.linearGradient(listOf(Color(0xFF152522), Graphite, Color(0xFF102F2D)))).padding(20.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.background(Brush.linearGradient(listOf(Color(0xFF152522), Graphite, Color(0xFF102F2D)))).padding(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    BrandMark(Modifier.size(40.dp))
+                    BrandMark(Modifier.size(34.dp))
                     Column {
                         Text("TidyPilot", color = Cream, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                        Text(date.uppercase(), color = MutedOrange, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+                        Text("Calm home control", color = TidyMint, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text(date.uppercase(), color = MutedOrange, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
                     }
                 }
-                Text(title, color = Cream, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                Text("Plan: $planType", color = Cream, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(title, color = Cream, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    DashboardMetricPill("Plan", planType, Modifier.weight(1.3f))
                     DashboardMetricPill("Energy", energy, Modifier.weight(1f))
                     DashboardMetricPill("Time", "$minutes min", Modifier.weight(1f))
                 }
+                Button(
+                    onClick = { if (recommendedTask == null) onReplan() else onStartRecommended() },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
+                    colors = tidyButtonColors()
+                ) {
+                    Icon(Icons.Default.CheckCircle, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (recommendedTask == null) "Build today's reset" else "Start recommended reset")
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = onScan, modifier = Modifier.weight(1f), colors = tidyButtonColors()) {
+                    FilledTonalButton(onClick = onScan, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), colors = tidyTonalButtonColors()) {
                         Icon(Icons.Default.CameraAlt, null)
                         Spacer(Modifier.width(6.dp))
                         Text("Scan room")
                     }
-                    FilledTonalButton(onClick = onReplan, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) {
+                    FilledTonalButton(onClick = onReplan, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), colors = tidyTonalButtonColors()) {
                         Icon(Icons.Default.Refresh, null)
                         Spacer(Modifier.width(6.dp))
                         Text("Check in")
+                    }
+                }
+                if (recommendedTask != null) {
+                    TextButton(onClick = onOpenRecommended) {
+                        Text("View task details", color = TidyMint)
                     }
                 }
             }
@@ -496,10 +521,10 @@ private fun DashboardMetricPill(label: String, value: String, modifier: Modifier
     Column(
         modifier
             .background(Cream.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-            .padding(12.dp)
+            .padding(10.dp)
     ) {
         Text(label, color = Cream.copy(alpha = 0.78f), style = MaterialTheme.typography.labelMedium)
-        Text(value, color = TidyMint, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+        Text(value, color = TidyMint, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -508,12 +533,12 @@ private fun DashboardSummaryGrid(state: TidyPilotState, workStatus: String, onSc
     StudioCard {
         Text("Home control", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            DashboardMiniCard("Done today", "${state.completedTodayCount}", "Soft green wins", Icons.Default.CheckCircle, Modifier.weight(1f))
-            DashboardMiniCard("Rooms", "${state.averageTidyScore}/100", "Average tidy score", Icons.Default.RoomPreferences, Modifier.weight(1f))
+            DashboardMiniCard("Done today", "${state.completedTodayCount}", "Completed resets", Icons.Default.CheckCircle, Modifier.weight(1f))
+            DashboardMiniCard("Avg room score", "${state.averageTidyScore}/100", "Across active rooms", Icons.Default.RoomPreferences, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             DashboardMiniCard("Streak", "${state.streak} days", "Keep it gentle", Icons.Default.CleaningServices, Modifier.weight(1f))
-            DashboardMiniCard("Work", workStatus, workShiftImpact(state), Icons.Default.Work, Modifier.weight(1f), onClick = onSchedule)
+            DashboardMiniCard("Today", dashboardWorkStatusLabel(workStatus, state), dashboardWorkStatusDetail(workStatus, state), Icons.Default.Work, Modifier.weight(1f), onClick = onSchedule)
         }
     }
 }
@@ -898,11 +923,11 @@ private fun AddEditScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, 
     var mode by rememberSaveable { mutableStateOf("task") }
     var editingTask by remember(initialTaskId, state.tasks) { mutableStateOf(state.tasks.firstOrNull { it.id == initialTaskId }) }
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionHeader("Add/Edit", "Create cleaning tasks, rooms, and work shifts.") }
+        item { CompactBrandHeader("Quick Add", "Create a chore fast, then fine-tune if needed.") }
         item {
-            OptionChips(listOf("task", "room", "shift"), mode) {
-                mode = it
-                if (it != "task") editingTask = null
+            OptionChips(listOf("Task", "Room", "Shift"), modeLabel(mode)) {
+                mode = it.lowercase()
+                if (mode != "task") editingTask = null
             }
         }
         item {
@@ -1007,11 +1032,10 @@ private fun TaskForm(
     }
 
     StudioCard {
-        Text(if (existing == null) "Quick add task" else "Edit task", fontWeight = FontWeight.Black)
-        Text("Start from a common chore, then adjust only what matters.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Templates", fontWeight = FontWeight.SemiBold)
-        TaskTemplateChips(taskTemplates) { applyTemplate(it) }
+        Text(if (existing == null) "New task" else "Edit task", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+        Text("Pick a shortcut or type your own chore.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(name, { name = it }, label = { Text("Task name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        TaskTemplateChips(taskTemplates) { applyTemplate(it) }
         Text("Room")
         OptionChips(state.rooms.map { it.name }, state.rooms.firstOrNull { it.id == roomId }?.name.orEmpty()) { chosen -> roomId = state.rooms.firstOrNull { it.name == chosen }?.id.orEmpty() }
         Text("Estimated time")
@@ -1076,6 +1100,7 @@ private fun RoutinePreviewCard(frequency: String, dueChoice: String, energy: Str
 
 private data class TaskTemplate(
     val name: String,
+    val categoryLabel: String,
     val roomHint: String,
     val minutes: Int,
     val difficulty: String,
@@ -1086,31 +1111,62 @@ private data class TaskTemplate(
 )
 
 private val taskTemplates = listOf(
-    TaskTemplate("Take out trash", "Kitchen", 3, "easy", "low", "every few days", "normal", "trash"),
-    TaskTemplate("Do dishes", "Dishes", 10, "medium", "medium", "daily", "high", "dishes"),
-    TaskTemplate("Wipe counters", "Kitchen", 5, "easy", "low", "daily", "normal", "surface wipe"),
-    TaskTemplate("Vacuum floor", "Floors", 15, "medium", "medium", "weekly", "normal", "floor clutter"),
-    TaskTemplate("Start laundry", "Laundry", 7, "easy", "low", "every few days", "high", "laundry"),
-    TaskTemplate("Switch laundry", "Laundry", 5, "easy", "low", "every few days", "normal", "laundry"),
-    TaskTemplate("Fold laundry", "Laundry", 15, "medium", "medium", "weekly", "normal", "laundry"),
-    TaskTemplate("Clean bathroom sink", "Bathroom", 5, "easy", "low", "every few days", "normal", "bathroom reset"),
-    TaskTemplate("Clear one surface", "Other", 5, "easy", "low", "daily", "normal", "clutter"),
-    TaskTemplate("10-minute room reset", "Other", 10, "medium", "medium", "one-time", "high", "general reset")
+    TaskTemplate("Clear surface", "Quick reset", "Other", 5, "easy", "low", "daily", "normal", "clutter"),
+    TaskTemplate("10-minute reset", "Quick reset", "Other", 10, "medium", "medium", "one-time", "high", "general reset"),
+    TaskTemplate("Take out trash", "Quick reset", "Kitchen", 3, "easy", "low", "every few days", "normal", "trash"),
+    TaskTemplate("Do dishes", "Kitchen", "Dishes", 10, "medium", "medium", "daily", "high", "dishes"),
+    TaskTemplate("Wipe counters", "Kitchen", "Kitchen", 5, "easy", "low", "daily", "normal", "surface wipe"),
+    TaskTemplate("Start laundry", "Laundry", "Laundry", 7, "easy", "low", "every few days", "high", "laundry"),
+    TaskTemplate("Switch laundry", "Laundry", "Laundry", 5, "easy", "low", "every few days", "normal", "laundry"),
+    TaskTemplate("Fold laundry", "Laundry", "Laundry", 15, "medium", "medium", "weekly", "normal", "laundry"),
+    TaskTemplate("Clean sink", "Bathroom", "Bathroom", 5, "easy", "low", "every few days", "normal", "bathroom reset"),
+    TaskTemplate("Vacuum", "Floors", "Floors", 15, "medium", "medium", "weekly", "normal", "floor clutter")
 )
 
 @Composable
 private fun TaskTemplateChips(templates: List<TaskTemplate>, onSelect: (TaskTemplate) -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var selectedCategory by rememberSaveable { mutableStateOf("Quick reset") }
+    val categories = listOf("Quick reset", "Kitchen", "Laundry", "Bathroom", "Floors")
+    val selectedTemplates = templates.filter { it.categoryLabel == selectedCategory }
+    val visibleTemplates = if (expanded) selectedTemplates else selectedTemplates.take(4)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        templates.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Text("Templates", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+        CompactChoiceChips(categories, selectedCategory) { selectedCategory = it; expanded = false }
+        visibleTemplates.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { template ->
-                    FilledTonalButton(onClick = { onSelect(template) }, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) {
-                        Text(template.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                    TemplateChip(template, Modifier.weight(1f)) { onSelect(template) }
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+        if (selectedTemplates.size > 4) {
+            TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                Text(if (expanded) "Show fewer templates" else "More templates")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TemplateChip(template: TaskTemplate, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 7.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Text(
+            template.name,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Clip
+        )
     }
 }
 
@@ -1254,7 +1310,7 @@ private fun shiftRepeatDates(startDate: LocalDate, repeat: String): List<LocalDa
 @Composable
 private fun RoomManagementScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, snackbar: SnackbarHostState, nav: NavHostController) {
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionHeader("Room Management", "Create, prioritize, and understand rooms without a spreadsheet.") }
+        item { CompactBrandHeader("Rooms", "Prioritize rooms and see what needs attention.") }
         if (state.rooms.isEmpty()) {
             item { EmptyState("No rooms yet.", "Add your first room to start planning.") }
         }
@@ -1281,41 +1337,50 @@ private fun RoomManagementCard(room: RoomEntity, state: TidyPilotState, viewMode
     val stats = roomStats(room, state)
     val score = roomScore(room, state)
     StudioCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.RoomPreferences, null, tint = roomScoreColor(score), modifier = Modifier.size(30.dp))
-            Spacer(Modifier.width(10.dp))
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Default.RoomPreferences, null, tint = roomScoreColor(score), modifier = Modifier.size(26.dp))
             Column(Modifier.weight(1f)) {
                 Text(room.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("${score.label} - ${score.reason}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(topRoomIssue(score, stats), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Text("${score.score}/100", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = roomScoreColor(score))
+            RoomStatusBadge(score)
         }
-        LinearProgressIndicator(progress = { score.score / 100f }, modifier = Modifier.fillMaxWidth())
-        RoomStatGrid(
-            "Active tasks" to "${stats.activeTasks}",
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LinearProgressIndicator(
+                progress = { score.score / 100f },
+                modifier = Modifier.weight(1f),
+                color = roomProgressColor(score),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            )
+            Text("${score.score}/100", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        CompactRoomFacts(
+            "Tasks" to "${stats.activeTasks}",
             "Overdue" to "${score.overdueTasks}",
-            "Open issues" to "${stats.openIssues}",
-            "Last reset" to (score.lastCompletedLabel),
-            "Last scanned" to (stats.lastScanned ?: "Not yet")
+            "Issues" to "${stats.openIssues}",
+            "Reset" to (score.lastCompletedLabel),
+            "Scan" to (stats.lastScanned ?: "Not yet"),
+            "Default" to room.defaultTaskFrequency
         )
-        Text("Default: ${room.defaultTaskFrequency} - ${room.defaultTaskIntensity} intensity", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        WrapButtons(
-            (if (editing) "Close edit" else "Rename / edit") to { editing = !editing },
-            (if (showHistory) "Hide history" else "View history") to { showHistory = !showHistory },
-            "Room detail" to { nav.navigate("detail/room/${room.id}") },
-            "Archive room" to {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { nav.navigate("detail/room/${room.id}") }, modifier = Modifier.weight(1f), colors = tidyButtonColors()) {
+                Text("Open room")
+            }
+            TextButton(onClick = { editing = !editing }) { Text(if (editing) "Close" else "Edit") }
+            TextButton(onClick = { showHistory = !showHistory }) { Text(if (showHistory) "Hide" else "History") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = {
                 viewModel.archiveRoom(room)
                 scope.launch { snackbar.showSnackbar("${room.name} archived.") }
-            },
-            "Delete room" to {
-                if (stats.safeToDelete) {
+            }) { Text("Archive") }
+            if (stats.safeToDelete) {
+                TextButton(onClick = {
                     viewModel.deleteRoom(room)
                     scope.launch { snackbar.showSnackbar("${room.name} deleted.") }
-                } else {
-                    scope.launch { snackbar.showSnackbar("Archive this room first. It still has tasks, scans, or scan issues.") }
-                }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-        )
+        }
         if (editing) {
             RoomForm(state, viewModel, snackbar, existing = room) { editing = false }
         }
@@ -1342,6 +1407,47 @@ private fun RoomHistory(room: RoomEntity, state: TidyPilotState) {
             Text("Scanned: ${it.scanDate.format(DateTimeFormatter.ofPattern("MMM d, h:mm a"))} - score ${it.tidyScore}/100", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+@Composable
+private fun RoomStatusBadge(score: RoomScore) {
+    val color = roomScoreColor(score)
+    Box(
+        modifier = Modifier
+            .background(color.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(score.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = color)
+    }
+}
+
+@Composable
+private fun CompactRoomFacts(vararg items: Pair<String, String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.toList().chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { (label, value) ->
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 7.dp)
+                    ) {
+                        Text(value, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+private fun topRoomIssue(score: RoomScore, stats: RoomStats): String = when {
+    score.openIssues > 0 -> "${score.openIssues} scan issue${if (score.openIssues == 1) "" else "s"} to review"
+    score.overdueTasks > 0 -> "${score.overdueTasks} overdue task${if (score.overdueTasks == 1) "" else "s"}"
+    stats.activeTasks > 0 -> "${stats.activeTasks} active task${if (stats.activeTasks == 1) "" else "s"}"
+    else -> score.reason
 }
 
 @Composable
@@ -2400,62 +2506,83 @@ private fun ReportsScreen(state: TidyPilotState, nav: NavHostController, viewMod
     val stats = reportStats(state)
     val report = buildReport(state, stats)
     val csv = buildReportCsv(state, stats)
+    val rankedRooms = state.rooms
+        .sortedWith(compareBy<RoomEntity> { roomScore(it, state).score }.thenByDescending { priorityScore(it.priority) })
+        .take(4)
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionHeader("Export/Reports", "Useful local summaries you can copy or save.") }
+        item { CompactBrandHeader("Reports", "Useful local summaries you can copy or save.") }
         if (state.completions.isEmpty() && state.scans.isEmpty()) {
             item { EmptyState("Nothing to report yet.", "Complete a few tasks to see progress.") }
         }
         item {
-            ProgressGrid(
-                "Completed this week" to "${stats.completedThisWeek}",
-                "Best streak" to "${stats.bestStreak} days",
-                "Average energy" to stats.averageEnergy,
-                "Overdue/missed" to "${stats.overdueTasks.size}"
-            )
-        }
-        item {
             StudioCard {
-                Text("Rooms", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("Most improved room: ${stats.mostImprovedRoom ?: "Not enough scan history yet."}")
-                Text("Rooms needing attention: ${stats.roomsNeedingAttention.ifEmpty { listOf("None right now") }.joinToString()}")
-                Text("Most consistent room: ${mostConsistentRoom(state) ?: "Not enough completion history."}")
+                Text("Weekly snapshot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    ReportMiniStat("Completed", "${stats.completedThisWeek}", Modifier.weight(1f))
+                    ReportMiniStat("Best streak", "${stats.bestStreak} days", Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    ReportMiniStat("Avg energy", stats.averageEnergy, Modifier.weight(1f))
+                    ReportMiniStat("Overdue", "${stats.overdueTasks.size}", Modifier.weight(1f))
+                }
             }
         }
         item {
             StudioCard {
-                Text("Work and energy impact", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("Average energy level: ${stats.averageEnergy}")
-                Text("Work schedule impact: ${stats.workScheduleImpact}")
-                Text("Day-off completions: ${stats.dayOffCompletions}")
-                Text("Workday completions: ${stats.workdayCompletions}")
+                Text("Room highlights", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    ReportHighlightCard("Most improved", stats.mostImprovedRoom ?: "More scans needed", TidyLeaf, Modifier.weight(1f))
+                    ReportHighlightCard("Watch next", rankedRooms.firstOrNull()?.name ?: "None right now", MutedOrange, Modifier.weight(1f))
+                }
+                if (rankedRooms.isNotEmpty()) {
+                    Text("Rooms needing attention", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+                    rankedRooms.forEachIndexed { index, room ->
+                        ReportRoomRankChip(index + 1, room, roomScore(room, state))
+                    }
+                } else {
+                    Text("No rooms to rank yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         item {
             StudioCard {
-                Text("Missed and scan follow-up", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("Missed/overdue tasks: ${stats.overdueTasks.ifEmpty { listOf("None") }.joinToString()}")
-                Text("Scan issues detected: ${stats.scanIssuesDetected}")
-                Text("Scan issues acted on: ${stats.scanIssuesActedOn}")
-                Text("Scan-created tasks completed: ${stats.scanTasksCompleted}")
+                Text("Energy and work impact", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    ReportMiniStat("Energy", stats.averageEnergy, Modifier.weight(1f))
+                    ReportMiniStat("Day off", "${stats.dayOffCompletions}", Modifier.weight(1f))
+                    ReportMiniStat("Workday", "${stats.workdayCompletions}", Modifier.weight(1f))
+                }
+                ReportBullet("Work impact", stats.workScheduleImpact)
+                ReportBullet("Most consistent", mostConsistentRoom(state) ?: "More completions will reveal this.")
             }
         }
         item {
             StudioCard {
-                Text("Local report preview", fontWeight = FontWeight.Black)
-                Text(report)
+                Text("Follow-up", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                ReportBullet("Overdue or missed", stats.overdueTasks.ifEmpty { listOf("None right now") }.take(3).joinToString())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    ReportMiniStat("Detected", "${stats.scanIssuesDetected}", Modifier.weight(1f))
+                    ReportMiniStat("Acted on", "${stats.scanIssuesActedOn}", Modifier.weight(1f))
+                    ReportMiniStat("Completed", "${stats.scanTasksCompleted}", Modifier.weight(1f))
+                }
+            }
+        }
+        item {
+            StudioCard {
+                Text("Export actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                 WrapButtons(
-                    "Copy text summary" to {
+                    "Copy summary" to {
                         clipboard.setText(AnnotatedString(report))
                         scope.launch { snackbar.showSnackbar("Report copied.") }
                     },
-                    "Export local report as TXT" to {
+                    "Export TXT" to {
                         val message = runCatching {
                             val file = writeLocalReport(context, "tidypilot_report_${LocalDate.now()}.txt", report)
                             "Saved TXT locally: ${file.name}"
                         }.getOrElse { "Could not save TXT report. Try again from Settings." }
                         scope.launch { snackbar.showSnackbar(message) }
                     },
-                    "Export local report as CSV" to {
+                    "Export CSV" to {
                         val message = runCatching {
                             val file = writeLocalReport(context, "tidypilot_report_${LocalDate.now()}.csv", csv)
                             "Saved CSV locally: ${file.name}"
@@ -2463,12 +2590,109 @@ private fun ReportsScreen(state: TidyPilotState, nav: NavHostController, viewMod
                         scope.launch { snackbar.showSnackbar(message) }
                     }
                 )
-                Text("Exports are saved locally in the app's external files folder. Nothing is uploaded.")
+                Text("Exports are saved locally. Nothing is uploaded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        item {
-            Button(onClick = { nav.navigate("results") }) { Text("Open latest scan result") }
+    }
+}
+
+@Composable
+private fun ReportInsightRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f), RoundedCornerShape(8.dp))
+            .padding(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            label,
+            modifier = Modifier.weight(0.42f),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            value,
+            modifier = Modifier.weight(0.58f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun ReportHighlightCard(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .background(accent.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun ReportRoomRankChip(rank: Int, room: RoomEntity, score: RoomScore) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(roomScoreColor(score).copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .background(roomScoreColor(score).copy(alpha = 0.18f), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("$rank", fontWeight = FontWeight.Black, color = roomScoreColor(score))
         }
+        Column(Modifier.weight(1f)) {
+            Text(room.name, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(score.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("${score.score}/100", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ReportBullet(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f), RoundedCornerShape(8.dp))
+            .padding(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .background(TidyAqua, RoundedCornerShape(8.dp))
+        )
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ReportMiniStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .background(TidyMint.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -2702,7 +2926,7 @@ private fun SettingsScreen(state: TidyPilotState, viewModel: TidyPilotViewModel)
     }
 
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionHeader("Settings", "Local controls for how TidyPilot looks, plans, reminds, and stores data.") }
+        item { CompactBrandHeader("Settings", "Local controls for planning, reminders, and privacy.") }
         item {
             StudioCard {
                 Text("Appearance", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
@@ -2879,6 +3103,46 @@ private fun SectionHeader(title: String, subtitle: String) {
 }
 
 @Composable
+private fun CompactBrandHeader(title: String, subtitle: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.76f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        BrandMark(Modifier.size(28.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "TidyPilot",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyState(title: String, body: String, actionLabel: String = "Start", action: (() -> Unit)? = null) {
     StudioCard {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2938,12 +3202,55 @@ private fun OptionChips(options: List<String>, selected: String, onSelect: (Stri
 }
 
 @Composable
+private fun CompactChoiceChips(options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { option ->
+                    FilterChip(
+                        selected = selected == option,
+                        onClick = { onSelect(option) },
+                        label = {
+                            Text(
+                                option,
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = TidyMint.copy(alpha = 0.9f),
+                            selectedLabelColor = Color(0xFF10211E),
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
 private fun WrapButtons(vararg actions: Pair<String, () -> Unit>) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         actions.toList().chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { (label, action) ->
-                    FilledTonalButton(onClick = action, modifier = Modifier.weight(1f), colors = tidyTonalButtonColors()) { Text(label) }
+                    FilledTonalButton(
+                        onClick = action,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        colors = tidyTonalButtonColors()
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 2,
+                            overflow = TextOverflow.Clip
+                        )
+                    }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -3095,6 +3402,8 @@ private fun nextDueLabel(task: CleaningTaskEntity, today: LocalDate): String = w
     else -> "Due ${task.nextDueAt.format(DateTimeFormatter.ofPattern("MMM d"))} - repeats ${repeatLabel(task.frequencyType)}"
 }
 
+private fun modeLabel(mode: String): String = mode.replaceFirstChar { it.uppercase() }
+
 @Composable
 private fun taskEnergyColor(task: CleaningTaskEntity): Color = when (task.energyRequired) {
     "low" -> TidyLeaf
@@ -3159,9 +3468,17 @@ private fun roomScore(room: RoomEntity, state: TidyPilotState): RoomScore {
 @Composable
 private fun roomScoreColor(score: RoomScore) = when (score.label) {
     "Good" -> Sage
-    "Needs a quick reset" -> MutedOrange
-    "Priority room" -> MutedOrange
-    else -> MaterialTheme.colorScheme.error
+    "Needs a quick reset" -> TidyAqua
+    "Priority room" -> if (score.score < 25 || score.overdueTasks >= 3) TidyCoral else MutedOrange
+    else -> MutedOrange
+}
+
+@Composable
+private fun roomProgressColor(score: RoomScore) = when {
+    score.label == "Good" -> Sage
+    score.label == "Needs a quick reset" -> TidyAqua
+    score.label == "Priority room" && score.score < 25 -> TidyCoral
+    else -> MutedOrange
 }
 
 private fun roomStats(room: RoomEntity, state: TidyPilotState): RoomStats {
@@ -3201,6 +3518,26 @@ private fun roomAttentionText(room: RoomEntity): String = when {
     room.priority == "urgent" || room.priority == "high" -> "High priority room. Keep the next task manageable."
     room.tidyScore < 75 -> "Worth checking when you have a few minutes."
     else -> "Mostly steady. Maintain with a quick pass."
+}
+
+private fun dashboardWorkStatusLabel(workStatus: String, state: TidyPilotState): String = when (workStatus) {
+    "day off", "free day" -> "Day off"
+    "before work" -> "Before work"
+    "after work" -> "After work"
+    "too tight today" -> "Too tight"
+    "working today" -> "Working"
+    else -> if (state.todayShift == null) "Day off" else "Working"
+}
+
+private fun dashboardWorkStatusDetail(workStatus: String, state: TidyPilotState): String {
+    val shift = state.todayShift
+    return when {
+        workStatus == "day off" || workStatus == "free day" || shift == null -> "Good for a reset"
+        workStatus == "before work" -> "Quick tasks before ${shift.startTime}"
+        workStatus == "after work" -> "Low-energy reset after shift"
+        workStatus == "too tight today" -> "Smallest useful task"
+        else -> "${shift.startTime} - ${shift.endTime}"
+    }
 }
 
 private fun workShiftImpact(state: TidyPilotState): String {

@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.5-dashboard-routines`
+- Current release target: `v0.1.6-ui-polish`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -56,11 +56,10 @@ no tracking, no paid API, and no network upload in v1.
   toolchain.
 - `:app:assembleRelease` passed on 2026-07-07 with the known local Android
   toolchain.
-- Release `v0.1.5-dashboard-routines` is the current release target. It matches
-  the app palette to the TidyPilot logo, adds dashboard energy-based todo cards,
-  surfaces routine autopilot for repeating chores, clarifies repeat behavior in
-  Add/Edit and Task Detail, and keeps the local scanner/dataset tooling from
-  `v0.1.4-mess-detection`.
+- Release `v0.1.6-ui-polish` is the current release target. It refines the
+  Today dashboard, compact headers, Quick Add task creation, Room Management
+  cards, and Reports layout while keeping all local-first scanner and planning
+  behavior from earlier releases.
 
 ## DevHub
 

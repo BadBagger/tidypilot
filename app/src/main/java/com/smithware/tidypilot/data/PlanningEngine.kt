@@ -365,27 +365,83 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
             issues += AnalysisIssue(tag, label, action, minutes, energy, confidence)
         }
         if ("kitchen" in lower) {
-            add("dishes_visible", "Dishes visible", "Load or rinse dishes", 10, "medium", 0.72f)
-            add("cluttered_surface", "Cluttered counter", "Clear one counter section", 5, "low", 0.68f)
+            if (lower.hasAny("dishes", "dishwasher", "plates", "cups")) add("dishes_visible", "Dishes visible", "Load or rinse dishes", 10, "medium", 0.74f)
+            if (lower.hasAny("counter", "surface", "island", "clutter")) add("cluttered_surface", "Cluttered counter", "Clear one counter section", 5, "low", 0.7f)
+            if (lower.hasAny("sink", "full sink")) add("sink_full", "Sink looks full", "Empty or stage the sink", 8, "medium", 0.66f)
+            if (lower.hasAny("trash", "bag", "overflow")) add("trash_visible", "Trash visible", "Take out kitchen trash", 3, "low", 0.64f)
+            if (lower.hasAny("floor", "crumbs", "sweep")) add("floor_clutter", "Kitchen floor needs attention", "Sweep one kitchen floor zone", 8, "medium", 0.58f)
             add("wipe_needed", "Wipe needed", "Wipe counter", 4, "low", 0.61f)
         }
         if ("bath" in lower) {
-            add("bathroom_counter_mess", "Bathroom counter mess", "Reset bathroom counter", 6, "low", 0.7f)
+            if (lower.hasAny("counter", "sink", "toiletries", "surface", "clutter")) add("bathroom_counter_mess", "Bathroom counter mess", "Reset bathroom counter", 6, "low", 0.7f)
+            if (lower.hasAny("mirror", "spots")) add("mirror_wipe_needed", "Mirror wipe needed", "Wipe bathroom mirror", 4, "low", 0.58f)
+            if (lower.hasAny("towel", "towels", "laundry")) add("bathroom_towels_visible", "Towels visible", "Gather towels into laundry", 5, "low", 0.6f)
+            if (lower.hasAny("shower", "tub")) add("shower_reset_needed", "Shower or tub reset", "Do one shower/tub reset pass", 12, "medium", 0.56f)
             add("wipe_needed", "Visible need for wiping", "Wipe sink and faucet", 5, "low", 0.63f)
         }
         if ("bed" in lower) {
-            add("unmade_bed", "Bed reset needed", "Make the bed good enough", 4, "low", 0.67f)
-            add("laundry_visible", "Laundry visible", "Put clothes in one basket", 5, "low", 0.58f)
+            if (lower.hasAny("bed", "unmade", "blanket", "sheets")) add("unmade_bed", "Bed reset needed", "Make the bed good enough", 4, "low", 0.67f)
+            if (lower.hasAny("laundry", "clothes", "hamper")) add("laundry_visible", "Laundry visible", "Put clothes in one basket", 5, "low", 0.62f)
+            if (lower.hasAny("nightstand", "dresser", "surface", "desk")) add("bedroom_surface_clutter", "Bedroom surface clutter", "Reset one bedside or dresser surface", 7, "low", 0.6f)
+            if (lower.hasAny("floor", "shoes", "bags")) add("floor_clutter", "Bedroom floor clutter", "Clear one bedroom floor zone", 8, "medium", 0.59f)
+            if (lower.hasAny("closet", "boxes", "storage")) add("closet_or_box_clutter", "Closet or box clutter", "Group bedroom storage items together", 10, "medium", 0.55f)
+        }
+        if ("living" in lower || "family room" in lower || "den" in lower) {
+            if (lower.hasAny("floor", "toys", "clutter")) add("floor_clutter", "Living room floor clutter", "Pick up one living room floor zone", 8, "low", 0.62f)
+            if (lower.hasAny("coffee table", "table", "surface", "clutter")) add("living_surface_clutter", "Living room surface clutter", "Clear one table or surface", 6, "low", 0.64f)
+            if (lower.hasAny("couch", "sofa", "blanket", "pillow")) add("couch_reset_needed", "Couch reset needed", "Reset couch pillows and blankets", 4, "low", 0.6f)
+            if (lower.hasAny("cord", "remote", "electronics")) add("electronics_clutter", "Electronics clutter", "Group remotes and cords", 5, "low", 0.55f)
+            if (lower.hasAny("vacuum", "rug", "crumbs")) add("floor_clean_needed", "Floor clean needed", "Vacuum or sweep one visible zone", 12, "medium", 0.54f)
+        }
+        if ("entry" in lower || "mudroom" in lower || "hall" in lower) {
+            if (lower.hasAny("shoes", "shoe")) add("shoes_visible", "Shoes visible", "Line up or bin loose shoes", 5, "low", 0.66f)
+            if (lower.hasAny("bag", "bags", "backpack", "coat")) add("entry_bag_clutter", "Bags or coats visible", "Hang or group entryway bags and coats", 6, "low", 0.62f)
+            if (lower.hasAny("mail", "paper", "keys")) add("mail_or_keys_clutter", "Mail or key drop clutter", "Reset the entry drop zone", 5, "low", 0.58f)
+            add("entry_path_clutter", "Entry path clutter", "Clear the entry walking path", 6, "low", 0.56f)
+        }
+        if ("laundry" in lower) {
+            if (lower.hasAny("washer", "dryer", "machine")) add("laundry_machine_reset", "Laundry machine reset", "Switch or start one laundry load", 7, "low", 0.68f)
+            if (lower.hasAny("fold", "basket", "clean clothes")) add("folding_needed", "Folding needed", "Fold one small laundry stack", 12, "medium", 0.6f)
+            if (lower.hasAny("floor", "clothes")) add("laundry_visible", "Laundry visible", "Put floor clothes in one basket", 6, "low", 0.62f)
+            if (lower.hasAny("surface", "top", "shelf")) add("laundry_surface_clutter", "Laundry surface clutter", "Clear the washer or shelf top", 5, "low", 0.56f)
+        }
+        if ("basement" in lower || "storage" in lower || "garage" in lower) {
+            if (lower.hasAny("floor", "walking path", "path", "walkway", "open space")) {
+                add("basement_floor_path", "Floor path clutter", "Clear one walking path around equipment", 10, "medium", 0.74f)
+            }
+            if (lower.hasAny("shelf", "shelves", "rack", "storage", "bins", "boxes")) {
+                add("storage_shelf_clutter", "Storage shelf clutter", "Group loose shelf items into one bin", 12, "medium", 0.7f)
+            }
+            if (lower.hasAny("gear", "workout", "bench", "weights", "bike", "tools", "equipment")) {
+                add("loose_gear_visible", "Loose gear visible", "Put loose gear in one zone", 8, "low", 0.66f)
+            }
+            if (lower.hasAny("cord", "cords", "cable", "cables", "charger", "power strip")) {
+                add("cords_or_equipment_clutter", "Cords or equipment clutter", "Coil cords and move small items off the floor", 7, "low", 0.62f)
+            }
+            if (lower.hasAny("trash", "cardboard", "paper", "packaging")) {
+                add("trash_visible", "Trash or cardboard pass", "Take one trash or cardboard pass", 5, "low", 0.6f)
+            }
+            if (issues.none { it.tag in basementTags }) {
+                add("basement_floor_path", "Floor path clutter", "Clear one walking path around equipment", 10, "medium", 0.62f)
+                add("storage_shelf_clutter", "Storage shelf clutter", "Group loose shelf items into one bin", 12, "medium", 0.58f)
+                add("general_reset_needed", "Basement reset needed", "Set a 10-minute basement reset timer", 10, "medium", 0.55f)
+            }
         }
         if ("laundry" in lower || "clothes" in lower) add("laundry_visible", "Laundry visible", "Start one laundry load", 7, "low", 0.66f)
         if ("trash" in lower) add("trash_visible", "Trash visible", "Take trash to one bag", 3, "low", 0.64f)
-        if ("floor" in lower || "living" in lower || issues.isEmpty()) {
+        if ("floor" in lower || issues.isEmpty()) {
             add("floor_clutter", "Floor clutter", "Pick up one visible area", 6, "low", 0.6f)
             add("general_reset_needed", "General room reset", "Set a 5-minute timer", 5, "low", 0.57f)
         }
-        val distinct = issues.distinctBy { it.tag }.take(5)
-        val estimated = distinct.sumOf { it.estimatedMinutes }.coerceAtMost(35)
-        val mess = (distinct.size * 14 + if ("rough" in lower || "needs reset" in lower) 15 else 0).coerceIn(20, 88)
+        val distinct = issues.distinctBy { it.tag }.take(8)
+        val estimated = distinct.sumOf { it.estimatedMinutes }.coerceAtMost(60)
+        val contextMess = when {
+            "basement" in lower && ("super untidy" in lower || "rough" in lower || "bad" in lower || "needs reset" in lower) -> 38
+            "basement" in lower || "storage" in lower || "garage" in lower -> 28
+            "rough" in lower || "needs reset" in lower -> 15
+            else -> 0
+        }
+        val mess = (distinct.size * 10 + contextMess).coerceIn(20, 88)
         return AnalysisOutput(
             imageUri = imageUri,
             tidyScore = 100 - mess,
@@ -396,6 +452,16 @@ class RoomPhotoAnalyzer : RoomImageAnalyzer {
         )
     }
 }
+
+private val basementTags = setOf(
+    "basement_floor_path",
+    "storage_shelf_clutter",
+    "loose_gear_visible",
+    "cords_or_equipment_clutter",
+    "trash_visible"
+)
+
+private fun String.hasAny(vararg needles: String): Boolean = needles.any { it in this }
 
 data class AnalysisOutput(
     val imageUri: String,

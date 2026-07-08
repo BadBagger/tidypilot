@@ -42,7 +42,7 @@ app\build\outputs\apk\release\app-release.apk
 
 ## Release
 
-Current release: `v0.1.2-signed-icon`
+Current release: `v0.1.3-scan-detail`
 
 GitHub repo: `https://github.com/BadBagger/tidypilot`
 

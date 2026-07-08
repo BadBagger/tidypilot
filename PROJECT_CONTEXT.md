@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.2-signed-icon`
+- Current release target: `v0.1.3-scan-detail`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -48,14 +48,14 @@ no tracking, no paid API, and no network upload in v1.
 
 ## Build Verification
 
-- `:app:testDebugUnitTest` passed on 2026-07-07 with 9 JVM tests.
+- `:app:testDebugUnitTest` passed on 2026-07-07 with scanner and planning JVM tests.
 - `:app:assembleDebug` passed on 2026-07-07 with the known local Android
   toolchain.
 - `:app:assembleRelease` passed on 2026-07-07 with the known local Android
   toolchain.
-- Release `v0.1.2-signed-icon` is the current release target. It adds the
-  release-signed outside-Play APK setup, schedule photo import, button
-  reliability fixes, and supplied launcher/brand icon assets.
+- Release `v0.1.3-scan-detail` is the current release target. It adds broader
+  room scan detail, basement/storage/garage analysis, quick room creation from
+  the scan flow, and tests for room-specific analyzer suggestions.
 
 ## DevHub
 

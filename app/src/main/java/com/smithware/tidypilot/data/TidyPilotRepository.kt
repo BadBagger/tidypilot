@@ -28,6 +28,7 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
         val bedroom = defaults.first { it.name == "Bedroom" }
         val living = defaults.first { it.name == "Living Room" }
         val laundry = defaults.first { it.name == "Laundry" }
+        val basement = defaults.first { it.name == "Basement" }
 
         val today = LocalDate.now()
         val tasks = listOf(
@@ -42,7 +43,9 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
             CleaningTaskEntity(name = "Pick up bedroom floor", roomId = bedroom.id, priority = "normal", estimatedMinutes = 10, difficulty = "medium", energyRequired = "medium", frequencyType = "weekly", preferredTime = "day off", photoDetectableCategory = "floor clutter", nextDueAt = today.plusDays(2), skippedCount = 1),
             CleaningTaskEntity(name = "10-minute living room reset", roomId = living.id, priority = "normal", estimatedMinutes = 10, difficulty = "medium", energyRequired = "medium", frequencyType = "daily", preferredTime = "anytime", isQuickResetTask = true, photoDetectableCategory = "floor clutter", nextDueAt = today),
             CleaningTaskEntity(name = "Vacuum living room rug", roomId = living.id, priority = "low", estimatedMinutes = 15, difficulty = "medium", energyRequired = "medium", frequencyType = "weekly", preferredTime = "day off", photoDetectableCategory = "floor clutter", nextDueAt = today.plusDays(4)),
-            CleaningTaskEntity(name = "Switch laundry and fold one basket", roomId = laundry.id, priority = "normal", estimatedMinutes = 15, difficulty = "medium", energyRequired = "medium", frequencyType = "every few days", preferredTime = "day off", photoDetectableCategory = "laundry", nextDueAt = today.plusDays(1))
+            CleaningTaskEntity(name = "Switch laundry and fold one basket", roomId = laundry.id, priority = "normal", estimatedMinutes = 15, difficulty = "medium", energyRequired = "medium", frequencyType = "every few days", preferredTime = "day off", photoDetectableCategory = "laundry", nextDueAt = today.plusDays(1)),
+            CleaningTaskEntity(name = "Clear one basement walking path", roomId = basement.id, description = "Move loose gear, cords, and floor items from one safe path first.", priority = "high", estimatedMinutes = 10, difficulty = "medium", energyRequired = "medium", frequencyType = "weekly", preferredTime = "day off", photoDetectableCategory = "floor clutter", nextDueAt = today),
+            CleaningTaskEntity(name = "Sort one basement shelf", roomId = basement.id, description = "Group loose items on one shelf or rack without trying to fix the whole room.", priority = "normal", estimatedMinutes = 12, difficulty = "medium", energyRequired = "medium", frequencyType = "weekly", preferredTime = "day off", photoDetectableCategory = "clutter", nextDueAt = today.plusDays(2))
         )
         tasks.forEach { dao.saveTask(it) }
 
@@ -98,7 +101,8 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
         RoomEntity(name = "Bathroom", roomType = "Bathroom", iconName = "bath", tidyScore = 72, priority = "normal", notes = "Sink, mirror, and towels."),
         RoomEntity(name = "Bedroom", roomType = "Bedroom", iconName = "bed", tidyScore = 63, priority = "high", notes = "Laundry, nightstand, and floor resets."),
         RoomEntity(name = "Living Room", roomType = "Living Room", iconName = "sofa", tidyScore = 76, priority = "normal", notes = "Clutter reset and vacuuming."),
-        RoomEntity(name = "Laundry", roomType = "Laundry", iconName = "laundry", tidyScore = 66, priority = "normal", defaultTaskFrequency = "every few days", notes = "Switch loads and fold clothes.")
+        RoomEntity(name = "Laundry", roomType = "Laundry", iconName = "laundry", tidyScore = 66, priority = "normal", defaultTaskFrequency = "every few days", notes = "Switch loads and fold clothes."),
+        RoomEntity(name = "Basement", roomType = "Basement", iconName = "basement", tidyScore = 42, priority = "high", defaultTaskIntensity = "medium", defaultTaskFrequency = "weekly", notes = "Storage shelves, floor paths, cords, gear, and bigger reset projects.")
     )
 
     suspend fun resetDemoData() {

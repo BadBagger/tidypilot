@@ -343,7 +343,7 @@ private fun OnboardingScreen(
 
 private data class OnboardingPage(val title: String, val body: String)
 
-private val defaultStarterRooms = listOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry", "Entryway")
+private val defaultStarterRooms = listOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry", "Entryway", "Basement")
 
 private fun onboardingPages(): List<OnboardingPage> = listOf(
     OnboardingPage("Welcome", "TidyPilot helps you keep your space manageable."),
@@ -1033,6 +1033,8 @@ private fun RoomForm(state: TidyPilotState, viewModel: TidyPilotViewModel, snack
         Text(if (existing == null) "Add room" else "Edit room", fontWeight = FontWeight.Black)
         OutlinedTextField(name, { name = it }, label = { Text("Room name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(type, { type = it }, label = { Text("Room type") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Text("Common room types")
+        OptionChips(listOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry", "Entryway", "Basement", "Storage", "Garage", "Other"), type) { type = it }
         Text("Priority")
         OptionChips(listOf("low", "normal", "high", "urgent"), priority) { priority = it }
         Text("Default task intensity")
@@ -1472,7 +1474,10 @@ private fun RoomPhotoScanScreen(state: TidyPilotState, viewModel: TidyPilotViewM
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
     var isAnalyzing by rememberSaveable { mutableStateOf(false) }
     var scanStartCount by rememberSaveable { mutableStateOf(state.scans.size) }
+    var quickRoomName by rememberSaveable { mutableStateOf("") }
+    var quickRoomType by rememberSaveable { mutableStateOf("Bedroom") }
     val selectedRoom = state.rooms.firstOrNull { it.id == roomId }
+    val visibleContextOptions = visibleScanContextOptions(selectedRoom)
 
     fun startLocalScan(room: RoomEntity, uri: Uri, scanNote: String) {
         scanStartCount = state.scans.size
@@ -1531,6 +1536,53 @@ private fun RoomPhotoScanScreen(state: TidyPilotState, viewModel: TidyPilotViewM
             StudioCard {
                 Text("Pick room", fontWeight = FontWeight.Black)
                 OptionChips(state.rooms.map { it.name }, selectedRoom?.name.orEmpty()) { chosen -> roomId = state.rooms.firstOrNull { it.name == chosen }?.id.orEmpty() }
+                Text("Need another room?", fontWeight = FontWeight.SemiBold)
+                Text("Add rooms like Bedroom 2, Kids Room, Guest Bedroom, or Basement Storage before scanning.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    quickRoomName,
+                    { quickRoomName = it },
+                    label = { Text("New room name") },
+                    placeholder = { Text("Bedroom 2") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OptionChips(roomTypeOptions, quickRoomType) { quickRoomType = it }
+                FilledTonalButton(
+                    onClick = {
+                        val cleanName = quickRoomName.trim()
+                        if (cleanName.isBlank()) {
+                            scope.launch { snackbar.showSnackbar("Name the room first.") }
+                            return@FilledTonalButton
+                        }
+                        val newRoom = RoomEntity(
+                            name = cleanName,
+                            roomType = quickRoomType,
+                            iconName = quickRoomType.lowercase().replace(" ", "_"),
+                            tidyScore = 60,
+                            priority = if (quickRoomType in listOf("Basement", "Garage", "Storage")) "high" else "normal",
+                            defaultTaskIntensity = if (quickRoomType in listOf("Basement", "Garage", "Storage")) "medium" else "low",
+                            defaultTaskFrequency = "weekly"
+                        )
+                        val error = viewModel.saveRoom(newRoom)
+                        if (error == null) {
+                            roomId = newRoom.id
+                            quickRoomName = ""
+                        }
+                        scope.launch { snackbar.showSnackbar(error ?: "$cleanName added for this scan.") }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Add room for this scan") }
+                if (visibleContextOptions.isNotEmpty()) {
+                    Text("Visible in photo", fontWeight = FontWeight.SemiBold)
+                    Text("Tap what you can see so the local scan suggestions match the room better.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SelectableContextChips(
+                        options = visibleContextOptions,
+                        selectedText = note,
+                        onToggle = { token ->
+                            note = toggleScanContextToken(note, token)
+                        }
+                    )
+                }
                 OutlinedTextField(note, { note = it }, label = { Text("Optional note") }, placeholder = { Text("after work mess") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             }
         }
@@ -1895,6 +1947,67 @@ private data class ScanIssueDraft(
     val confidence: Float
 )
 
+private val roomTypeOptions = listOf("Kitchen", "Bathroom", "Bedroom", "Living Room", "Laundry", "Entryway", "Basement", "Storage", "Garage", "Office", "Kids Room", "Guest Bedroom", "Other")
+
+private fun visibleScanContextOptions(room: RoomEntity?): List<String> {
+    val text = "${room?.roomType.orEmpty()} ${room?.name.orEmpty()}".lowercase()
+    return when {
+        text.containsAny("basement", "storage", "garage") -> listOf(
+            "super untidy",
+            "floor path blocked",
+            "shelves cluttered",
+            "workout gear",
+            "bike or equipment",
+            "cords visible",
+            "trash or cardboard",
+            "needs bigger reset"
+        )
+        text.containsAny("kitchen") -> listOf("dishes visible", "sink full", "counter clutter", "stove area", "trash visible", "floor crumbs", "wipe needed", "needs bigger reset")
+        text.containsAny("bedroom", "bed", "kids room", "guest bedroom") -> listOf("laundry visible", "floor clutter", "unmade bed", "nightstand clutter", "dresser clutter", "closet or boxes", "trash visible", "needs bigger reset")
+        text.containsAny("bath") -> listOf("counter clutter", "sink area", "mirror spots", "towels", "shower or tub", "trash visible", "floor clutter", "wipe needed")
+        text.containsAny("living", "family room", "den") -> listOf("floor clutter", "coffee table clutter", "couch blankets", "toys visible", "electronics cords", "trash visible", "vacuum needed", "needs bigger reset")
+        text.containsAny("entry", "mudroom", "hall") -> listOf("shoes visible", "bags or coats", "mail or keys", "floor path blocked", "trash visible", "needs reset")
+        text.containsAny("laundry") -> listOf("washer or dryer", "clothes on floor", "basket to fold", "machine top clutter", "shelves cluttered", "needs bigger reset")
+        text.containsAny("office", "desk") -> listOf("desk clutter", "paper piles", "cords visible", "floor clutter", "trash visible", "needs reset")
+        else -> listOf("floor clutter", "surface clutter", "trash visible", "cords visible", "paper piles", "wipe needed", "needs reset")
+    }
+}
+
+private fun String.containsAny(vararg needles: String): Boolean = needles.any { contains(it, ignoreCase = true) }
+
+@Composable
+private fun SelectableContextChips(options: List<String>, selectedText: String, onToggle: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { option ->
+                    FilterChip(
+                        selected = selectedText.contains(option, ignoreCase = true),
+                        onClick = { onToggle(option) },
+                        label = { Text(option, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+private fun toggleScanContextToken(current: String, token: String): String {
+    val parts = current.split(",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .toMutableList()
+    val existing = parts.indexOfFirst { it.equals(token, ignoreCase = true) }
+    if (existing >= 0) {
+        parts.removeAt(existing)
+    } else {
+        parts += token
+    }
+    return parts.joinToString(", ")
+}
+
 private fun scanIssueTitle(draft: ScanIssueDraft): String = when (draft.tag) {
     "cluttered_surface" -> "Possible clutter on counter"
     "dishes_visible" -> "Possible dishes visible"
@@ -1905,6 +2018,26 @@ private fun scanIssueTitle(draft: ScanIssueDraft): String = when (draft.tag) {
     "bathroom_counter_mess" -> "Possible bathroom counter mess"
     "sink_full" -> "Possible full sink"
     "wipe_needed" -> "Possible surface wipe needed"
+    "basement_floor_path" -> "Possible floor path clutter"
+    "storage_shelf_clutter" -> "Possible storage shelf clutter"
+    "loose_gear_visible" -> "Possible loose gear"
+    "cords_or_equipment_clutter" -> "Possible cords or equipment clutter"
+    "mirror_wipe_needed" -> "Possible mirror wipe needed"
+    "bathroom_towels_visible" -> "Possible towels to gather"
+    "shower_reset_needed" -> "Possible shower or tub reset"
+    "bedroom_surface_clutter" -> "Possible bedroom surface clutter"
+    "closet_or_box_clutter" -> "Possible closet or box clutter"
+    "living_surface_clutter" -> "Possible table or surface clutter"
+    "couch_reset_needed" -> "Possible couch reset"
+    "electronics_clutter" -> "Possible electronics or cord clutter"
+    "floor_clean_needed" -> "Possible floor cleaning needed"
+    "shoes_visible" -> "Possible shoe clutter"
+    "entry_bag_clutter" -> "Possible bags or coats to reset"
+    "mail_or_keys_clutter" -> "Possible entry drop-zone clutter"
+    "entry_path_clutter" -> "Possible entry path clutter"
+    "laundry_machine_reset" -> "Possible laundry machine reset"
+    "folding_needed" -> "Possible folding needed"
+    "laundry_surface_clutter" -> "Possible laundry surface clutter"
     else -> draft.label.ifBlank { "Possible room reset" }
 }
 

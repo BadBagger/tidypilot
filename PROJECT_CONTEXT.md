@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.7-task-delete-hero-fix`
+- Current release target: `v0.1.8-schedule-import`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -56,10 +56,10 @@ no tracking, no paid API, and no network upload in v1.
   toolchain.
 - `:app:assembleRelease` passed on 2026-07-07 with the known local Android
   toolchain.
-- Release `v0.1.7-task-delete-hero-fix` is the current release target. It fixes
-  room-detail task edit/delete actions, keeps task deletion from unexpectedly
-  routing to Today, and restores the Today hero to a light cream/mint treatment
-  while preserving the UI polish from `v0.1.6-ui-polish`.
+- Release `v0.1.8-schedule-import` is the current release target. It makes the
+  work schedule screenshot importer a first-class flow, improves local OCR
+  guidance and day-off parsing, and keeps imported shifts connected to adaptive
+  chore planning.
 
 ## DevHub
 

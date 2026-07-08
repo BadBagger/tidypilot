@@ -35,7 +35,7 @@ class ScheduleImportParserTest {
     }
 
     @Test
-    fun ignoresDaysOffAndUnclearLines() {
+    fun parsesDaysOffAndUnclearLines() {
         val parsed = ScheduleImportParser.parse(
             rawText = """
                 Monday OFF
@@ -45,9 +45,38 @@ class ScheduleImportParserTest {
             anchorDate = LocalDate.of(2026, 7, 7)
         )
 
+        assertEquals(2, parsed.size)
+        assertEquals(LocalDate.of(2026, 7, 6), parsed.first().date)
+        assertEquals(true, parsed.first().isDayOff)
+        assertEquals(LocalDate.of(2026, 7, 10), parsed.last().date)
+        assertEquals(LocalTime.of(8, 0), parsed.last().startTime)
+        assertEquals(LocalTime.of(14, 0), parsed.last().endTime)
+    }
+
+    @Test
+    fun combinesDayHeaderWithFollowingTimeLine() {
+        val parsed = ScheduleImportParser.parse(
+            rawText = """
+                Wed
+                12 PM - 8:30 PM Closing
+            """.trimIndent(),
+            anchorDate = LocalDate.of(2026, 7, 7)
+        )
+
         assertEquals(1, parsed.size)
-        assertEquals(LocalDate.of(2026, 7, 10), parsed.single().date)
-        assertEquals(LocalTime.of(8, 0), parsed.single().startTime)
-        assertEquals(LocalTime.of(14, 0), parsed.single().endTime)
+        assertEquals(LocalDate.of(2026, 7, 8), parsed.single().date)
+        assertEquals(LocalTime.of(12, 0), parsed.single().startTime)
+        assertEquals(LocalTime.of(20, 30), parsed.single().endTime)
+    }
+
+    @Test
+    fun guidanceFlagsTimesWithoutDates() {
+        val parsed = ScheduleImportParser.parse(
+            rawText = "9:00 AM - 5:00 PM",
+            anchorDate = LocalDate.of(2026, 7, 7)
+        )
+
+        val guidance = ScheduleImportGuidanceClassifier.fromText("9:00 AM - 5:00 PM", parsed)
+        assertEquals(ScheduleImportIssue.TimesDetectedDatesMissing, guidance?.issue)
     }
 }

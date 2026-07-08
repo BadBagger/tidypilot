@@ -1,6 +1,7 @@
 package com.smithware.tidypilot.data
 
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.Year
@@ -13,37 +14,115 @@ data class ScheduleImportCandidate(
     val label: String,
     val expectedExhaustionLevel: String,
     val sourceLine: String,
-    val confidenceLabel: String
+    val confidenceLabel: String,
+    val isDayOff: Boolean = false
 )
+
+enum class ScheduleImportIssue(
+    val title: String,
+    val body: String,
+    val tips: List<String>
+) {
+    NoTextDetected(
+        title = "No text detected",
+        body = "This screenshot was hard to read.",
+        tips = listOf("Try cropping closer to the schedule list.", "Make sure dates and shift times are visible.")
+    ),
+    ImageTooBlurry(
+        title = "Image may be hard to read",
+        body = "The scanner found text, but the result looks noisy.",
+        tips = listOf("Try a clearer screenshot if the preview looks wrong.", "You can edit the text before saving.")
+    ),
+    DatesDetectedTimesMissing(
+        title = "Dates found, times missing",
+        body = "The scanner can see dates, but shift times are not clear yet.",
+        tips = listOf("Check that start and end times are visible.", "You can type missing times into the text box.")
+    ),
+    TimesDetectedDatesMissing(
+        title = "Times found, dates missing",
+        body = "The scanner can see shift times, but not the matching dates.",
+        tips = listOf("Crop so day names or dates are visible.", "Review before saving.")
+    ),
+    ScheduleFormatUnclear(
+        title = "Schedule format needs review",
+        body = "The scanner found text, but could not confidently build a schedule.",
+        tips = listOf("Try a tighter crop.", "You can still add shifts manually below.")
+    )
+}
+
+data class ScheduleImportGuidance(
+    val issue: ScheduleImportIssue,
+    val detail: String? = null
+)
+
+object ScheduleImportGuidanceClassifier {
+    private val dateRegex = Regex("""\b(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|(?:mon|tue|wed|thu|fri|sat|sun)\w*)\b""", RegexOption.IGNORE_CASE)
+    private val timeRegex = Regex("""\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\b|(?:\d{1,2}(?::\d{2})?\s*(?:-|\u2013|\u2014|to)\s*\d{1,2}(?::\d{2})?)""", RegexOption.IGNORE_CASE)
+
+    fun fromText(rawText: String, candidates: List<ScheduleImportCandidate>): ScheduleImportGuidance? {
+        if (rawText.isBlank()) return ScheduleImportGuidance(ScheduleImportIssue.NoTextDetected)
+        if (candidates.isNotEmpty() && !looksNoisy(rawText)) return null
+
+        val hasDate = dateRegex.containsMatchIn(rawText)
+        val hasTime = timeRegex.containsMatchIn(rawText)
+        return when {
+            candidates.isNotEmpty() && looksNoisy(rawText) -> ScheduleImportGuidance(ScheduleImportIssue.ImageTooBlurry)
+            hasDate && !hasTime -> ScheduleImportGuidance(ScheduleImportIssue.DatesDetectedTimesMissing)
+            hasTime && !hasDate -> ScheduleImportGuidance(ScheduleImportIssue.TimesDetectedDatesMissing)
+            looksNoisy(rawText) -> ScheduleImportGuidance(ScheduleImportIssue.ImageTooBlurry)
+            else -> ScheduleImportGuidance(ScheduleImportIssue.ScheduleFormatUnclear)
+        }
+    }
+
+    private fun looksNoisy(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.length < 18) return true
+        val lines = trimmed.lines().filter { it.isNotBlank() }
+        val shortLineRatio = lines.count { it.trim().length <= 2 }.toDouble() / lines.size.coerceAtLeast(1)
+        val readableRatio = trimmed.count { it.isLetterOrDigit() || it.isWhitespace() || it in "/:-." }.toDouble() / trimmed.length.coerceAtLeast(1)
+        return shortLineRatio > 0.45 || readableRatio < 0.62
+    }
+}
 
 object ScheduleImportParser {
     private val timeRangeRegex = Regex(
-        """(?i)\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|to)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\b"""
+        """(?i)\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|\u2013|\u2014|to)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\b"""
     )
     private val numericDateRegex = Regex("""\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b""")
     private val dayRegex = Regex("""(?i)\b(mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:rs|rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b""")
-    private val offRegex = Regex("""(?i)\b(off|pto|vacation|day\s*off|not\s*scheduled)\b""")
+    private val offRegex = Regex("""(?i)\b(off|pto|vacation|unavailable|day\s*off|not\s*scheduled)\b""")
 
     fun parse(rawText: String, anchorDate: LocalDate = LocalDate.now()): List<ScheduleImportCandidate> {
-        return rawText.lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .filterNot { offRegex.containsMatchIn(it) }
+        return expandedLines(rawText)
             .mapNotNull { line -> parseLine(line, anchorDate) }
-            .distinctBy { "${it.date}-${it.startTime}-${it.endTime}" }
+            .distinctBy { "${it.date}-${it.startTime}-${it.endTime}-${it.isDayOff}" }
             .sortedWith(compareBy<ScheduleImportCandidate> { it.date }.thenBy { it.startTime })
             .toList()
     }
 
     private fun parseLine(line: String, anchorDate: LocalDate): ScheduleImportCandidate? {
-        val range = timeRangeRegex.find(line) ?: return null
         val date = parseDate(line, anchorDate) ?: return null
+        if (offRegex.containsMatchIn(line)) {
+            return ScheduleImportCandidate(
+                date = date,
+                startTime = LocalTime.MIDNIGHT,
+                endTime = LocalTime.MIDNIGHT,
+                label = "Day off",
+                expectedExhaustionLevel = "low",
+                sourceLine = line,
+                confidenceLabel = if (numericDateRegex.containsMatchIn(line)) "high" else "medium",
+                isDayOff = true
+            )
+        }
+
+        val range = timeRangeRegex.find(line) ?: return null
         val endPeriod = range.groupValues[6].normalizePeriod()
-        val startPeriod = range.groupValues[3].normalizePeriod() ?: inferStartPeriod(range.groupValues[1].toInt(), range.groupValues[4].toInt(), endPeriod)
+        val startPeriod = range.groupValues[3].normalizePeriod()
+            ?: inferStartPeriod(range.groupValues[1].toInt(), range.groupValues[4].toInt(), endPeriod)
         val start = parseTime(range.groupValues[1], range.groupValues[2], startPeriod)
         val end = parseTime(range.groupValues[4], range.groupValues[5], endPeriod ?: startPeriod)
         val adjustedEnd = if (end <= start) end.plusHours(12) else end
-        val durationHours = java.time.Duration.between(start, adjustedEnd).toHours()
+        val durationHours = Duration.between(start, adjustedEnd).toHours()
         val label = when {
             line.contains("open", ignoreCase = true) -> "Opening shift"
             line.contains("clos", ignoreCase = true) -> "Closing shift"
@@ -59,6 +138,53 @@ object ScheduleImportParser {
             sourceLine = line,
             confidenceLabel = if (numericDateRegex.containsMatchIn(line) && endPeriod != null) "high" else "medium"
         )
+    }
+
+    private fun expandedLines(rawText: String): List<String> {
+        val lines = rawText.lineSequence()
+            .map(::normalizeLine)
+            .filter { it.isNotBlank() }
+            .filterNot(::isJunkLine)
+            .toList()
+        val expanded = mutableListOf<String>()
+        var lastDateHeader: String? = null
+        lines.forEachIndexed { index, line ->
+            expanded += line
+            if (lineHasDate(line)) lastDateHeader = line
+            val next = lines.getOrNull(index + 1)
+            if (lineHasDate(line) && next != null && !lineHasDate(next) && (lineHasTime(next) || offRegex.containsMatchIn(next))) {
+                expanded += "$line $next"
+            }
+            if (!lineHasDate(line) && (lineHasTime(line) || offRegex.containsMatchIn(line))) {
+                lastDateHeader?.let { expanded += "$it $line" }
+            }
+        }
+        return expanded
+    }
+
+    private fun normalizeLine(line: String): String {
+        return line
+            .replace('\u2013', '-')
+            .replace('\u2014', '-')
+            .replace('\u00a0', ' ')
+            .replace("a.m.", "AM", ignoreCase = true)
+            .replace("p.m.", "PM", ignoreCase = true)
+            .replace("a m", "AM", ignoreCase = true)
+            .replace("p m", "PM", ignoreCase = true)
+            .replace(Regex("""(?i)\b([ap])\s*\.?\s*m\.?\b""")) { "${it.groupValues[1].uppercase(Locale.US)}M" }
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+    }
+
+    private fun lineHasDate(line: String): Boolean = numericDateRegex.containsMatchIn(line) || dayRegex.containsMatchIn(line)
+
+    private fun lineHasTime(line: String): Boolean = timeRangeRegex.containsMatchIn(line)
+
+    private fun isJunkLine(line: String): Boolean {
+        return line.equals("schedule", ignoreCase = true) ||
+            line.equals("menu", ignoreCase = true) ||
+            line.startsWith("net hours", ignoreCase = true) ||
+            line.contains("publix.org", ignoreCase = true)
     }
 
     private fun parseDate(line: String, anchorDate: LocalDate): LocalDate? {

@@ -112,6 +112,8 @@ import com.smithware.tidypilot.data.PlanningEngine
 import com.smithware.tidypilot.data.RoomEntity
 import com.smithware.tidypilot.data.RoomPhotoScanEntity
 import com.smithware.tidypilot.data.ScheduleImportCandidate
+import com.smithware.tidypilot.data.ScheduleImportGuidance
+import com.smithware.tidypilot.data.ScheduleImportGuidanceClassifier
 import com.smithware.tidypilot.data.ScheduleImportParser
 import com.smithware.tidypilot.data.ScanIssueEntity
 import com.smithware.tidypilot.data.WorkShiftEntity
@@ -157,6 +159,7 @@ private sealed class Route(val value: String, val label: String, val icon: @Comp
     data object Dashboard : Route("dashboard", "Today", { Icon(Icons.Default.Home, null) })
     data object Add : Route("add", "Add/Edit", { Icon(Icons.Default.Add, null) })
     data object Rooms : Route("rooms", "Rooms", { Icon(Icons.Default.RoomPreferences, null) })
+    data object Import : Route("import", "Import", { Icon(Icons.Default.CalendarMonth, null) })
     data object Reports : Route("reports", "Reports", { Icon(Icons.Default.FileDownload, null) })
     data object Settings : Route("settings", "Settings", { Icon(Icons.Default.Settings, null) })
 }
@@ -168,7 +171,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
     val snackbar = remember { SnackbarHostState() }
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route ?: Route.Dashboard.value
-    val topLevelRoutes = listOf(Route.Dashboard.value, Route.Add.value, Route.Rooms.value, Route.Reports.value, Route.Settings.value)
+    val topLevelRoutes = listOf(Route.Dashboard.value, Route.Add.value, Route.Rooms.value, Route.Import.value, Route.Reports.value, Route.Settings.value)
     val showBack = current !in topLevelRoutes
     if (!state.onboardingComplete) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
@@ -206,7 +209,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                listOf(Route.Dashboard, Route.Add, Route.Rooms, Route.Reports, Route.Settings).forEach { route ->
+                listOf(Route.Dashboard, Route.Add, Route.Rooms, Route.Import, Route.Reports, Route.Settings).forEach { route ->
                     NavigationBarItem(
                         selected = current == route.value,
                         onClick = {
@@ -237,9 +240,10 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
                 AddEditScreen(state, viewModel, snackbar, initialTaskId = entry.arguments?.getString("id"))
             }
             composable(Route.Rooms.value) { RoomManagementScreen(state, viewModel, snackbar, nav) }
+            composable(Route.Import.value) { ScheduleImportScreen(state, viewModel, snackbar, nav) }
             composable(Route.Reports.value) { ReportsScreen(state, nav, viewModel, snackbar) }
             composable(Route.Settings.value) { SettingsScreen(state, viewModel) }
-            composable("schedule") { WorkScheduleScreen(state, viewModel, snackbar) }
+            composable("schedule") { WorkScheduleScreen(state, viewModel, snackbar, nav) }
             composable("energy") { EnergyCheckInScreen(state, viewModel, nav, snackbar) }
             composable("scan") { RoomPhotoScanScreen(state, viewModel, nav, snackbar) }
             composable("results") { PhotoResultsScreen(state, viewModel, nav, snackbar) }
@@ -257,6 +261,7 @@ private fun TidyPilotApp(state: TidyPilotState, viewModel: TidyPilotViewModel) {
 }
 
 private fun screenTitle(route: String): String = when {
+    route == Route.Import.value -> "Import schedule"
     route == "schedule" -> "Work schedule"
     route == "energy" -> "Energy check-in"
     route == "scan" -> "Room scan"
@@ -420,6 +425,7 @@ private fun DashboardScreen(state: TidyPilotState, viewModel: TidyPilotViewModel
                 onSchedule = { nav.navigate("schedule") }
             )
         }
+        item { ScheduleImportPromptCard(nav) }
         item {
             QuickStartCard(
                 task = nextTask,
@@ -526,6 +532,25 @@ private fun DashboardMetricPill(label: String, value: String, modifier: Modifier
     ) {
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
         Text(value, color = TidyDeepTeal, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun ScheduleImportPromptCard(nav: NavHostController) {
+    StudioCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Default.CalendarMonth, null, tint = TidyDeepTeal, modifier = Modifier.size(32.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Import your work schedule", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Text(
+                    "Use a screenshot so TidyPilot can keep chores lighter around shifts and suggest bigger resets on days off.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Button(onClick = { nav.navigate(Route.Import.value) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Import schedule screenshot")
+        }
     }
 }
 
@@ -1472,12 +1497,63 @@ private fun LegacyWorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilot
 }
 
 @Composable
-private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, snackbar: SnackbarHostState) {
+private fun ScheduleImportScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, snackbar: SnackbarHostState, nav: NavHostController) {
+    LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            SectionHeader(
+                "Import schedule",
+                "Turn a work schedule screenshot into shifts TidyPilot can plan around."
+            )
+        }
+        item {
+            StudioCard {
+                Text("How it works", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Text("1. Choose a screenshot or take a photo of your schedule.")
+                Text("2. Review the recognized text and shift preview.")
+                Text("3. Save the shifts, then Today updates around work and days off.")
+                Text("Photos stay on this device.", color = Sage, fontWeight = FontWeight.Black)
+            }
+        }
+        item {
+            SchedulePhotoImportCard(
+                viewModel = viewModel,
+                snackbar = snackbar,
+                onSaved = { nav.navigate("schedule") }
+            )
+        }
+        item {
+            FilledTonalButton(onClick = { nav.navigate("schedule") }, modifier = Modifier.fillMaxWidth()) {
+                Text("View work schedule")
+            }
+        }
+        if (state.shifts.isNotEmpty()) {
+            item {
+                ProgressGrid(
+                    "Saved shifts" to state.shifts.size.toString(),
+                    "This week" to "${state.shifts.count { it.date in LocalDate.now()..LocalDate.now().plusDays(6) }} shifts",
+                    "Next shift" to (state.shifts.firstOrNull { !it.date.isBefore(LocalDate.now()) }?.let { "${it.date} ${it.startTime}" } ?: "None"),
+                    "Planning" to shiftPlanningSummary(state)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewModel, snackbar: SnackbarHostState, nav: NavHostController) {
     var editingShift by remember { mutableStateOf<WorkShiftEntity?>(null) }
     val today = LocalDate.now()
     LazyColumn(Modifier.fillMaxSize().tidyBackground(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionHeader("Work Schedule", "TidyPilot plans around shifts, days off, and recovery time.") }
-        item { SchedulePhotoImportCard(viewModel, snackbar) }
+        item {
+            StudioCard {
+                Text("Import from screenshot", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Text("Use the schedule importer for faster setup, then review before saving.")
+                Button(onClick = { nav.navigate(Route.Import.value) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Open schedule importer")
+                }
+            }
+        }
         if (state.shifts.isEmpty()) {
             item { EmptyState("No shifts added.", "Add your schedule so TidyPilot can plan around work.") }
         }
@@ -1502,7 +1578,7 @@ private fun WorkScheduleScreen(state: TidyPilotState, viewModel: TidyPilotViewMo
 }
 
 @Composable
-private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: SnackbarHostState) {
+private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: SnackbarHostState, onSaved: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
@@ -1510,14 +1586,18 @@ private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: Sna
     var rawText by rememberSaveable { mutableStateOf("") }
     var message by rememberSaveable { mutableStateOf("Photos stay on this device. Review before saving.") }
     var candidates by remember { mutableStateOf<List<ScheduleImportCandidate>>(emptyList()) }
+    var guidance by remember { mutableStateOf<ScheduleImportGuidance?>(null) }
 
     fun updateImportText(text: String) {
         rawText = text
         candidates = ScheduleImportParser.parse(text)
+        guidance = ScheduleImportGuidanceClassifier.fromText(text, candidates)
         message = if (candidates.isEmpty()) {
             "No shifts found yet. Edit the text below or add shifts manually."
         } else {
-            "${candidates.size} possible shift${if (candidates.size == 1) "" else "s"} found. Review before saving."
+            val shiftCount = candidates.count { !it.isDayOff }
+            val dayOffCount = candidates.count { it.isDayOff }
+            "$shiftCount shift${if (shiftCount == 1) "" else "s"} and $dayOffCount day off entr${if (dayOffCount == 1) "y" else "ies"} ready to review."
         }
     }
 
@@ -1574,8 +1654,8 @@ private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: Sna
     }
 
     StudioCard {
-        Text("Import schedule photo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-        Text("Use a schedule screenshot or photo to draft shifts. OCR runs on this device, and nothing is saved until you confirm.")
+        Text("Import schedule screenshot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+        Text("Use a schedule screenshot or photo to draft shifts. OCR runs locally, and nothing is saved until you confirm.")
         Text("Photos stay on this device.", color = Sage, fontWeight = FontWeight.Black)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = { permission.launch(Manifest.permission.CAMERA) }, enabled = !isReading, modifier = Modifier.weight(1f)) {
@@ -1591,6 +1671,7 @@ private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: Sna
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        guidance?.let { ScheduleImportGuidanceCard(it) }
         if (rawText.isNotBlank()) {
             OutlinedTextField(
                 value = rawText,
@@ -1601,17 +1682,19 @@ private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: Sna
             )
         }
         if (candidates.isNotEmpty()) {
-            Text("Preview shifts", fontWeight = FontWeight.SemiBold)
+            Text("Review before saving", fontWeight = FontWeight.SemiBold)
             candidates.take(5).forEach { candidate ->
                 ScheduleImportCandidateRow(candidate) {
                     candidates = candidates.filterNot { it == candidate }
                 }
             }
-            if (candidates.size > 5) Text("${candidates.size - 5} more shifts will be saved.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (candidates.size > 5) Text("${candidates.size - 5} more entries will be saved.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Button(
                 onClick = {
-                    viewModel.saveShifts(
-                        candidates.map {
+                    val shifts = candidates.filterNot { it.isDayOff }
+                    val daysOff = candidates.filter { it.isDayOff }
+                    if (shifts.isNotEmpty()) {
+                        viewModel.saveShifts(shifts.map {
                             WorkShiftEntity(
                                 date = it.date,
                                 startTime = it.startTime,
@@ -1620,16 +1703,38 @@ private fun SchedulePhotoImportCard(viewModel: TidyPilotViewModel, snackbar: Sna
                                 expectedExhaustionLevel = it.expectedExhaustionLevel,
                                 notes = "Imported from schedule photo. Review confidence: ${it.confidenceLabel}. Source: ${it.sourceLine}"
                             )
-                        }
-                    )
-                    scope.launch { snackbar.showSnackbar("${candidates.size} imported shift${if (candidates.size == 1) "" else "s"} saved.") }
+                        })
+                    }
+                    daysOff.forEach { viewModel.markDayOff(it.date) }
+                    scope.launch {
+                        snackbar.showSnackbar("${shifts.size} shift${if (shifts.size == 1) "" else "s"} and ${daysOff.size} day off entr${if (daysOff.size == 1) "y" else "ies"} saved.")
+                    }
                     rawText = ""
                     candidates = emptyList()
+                    guidance = null
                     message = "Import saved. Photos stay on this device."
+                    onSaved()
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Confirm imported shifts")
+                Text("Confirm schedule import")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleImportGuidanceCard(guidance: ScheduleImportGuidance) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = TidyMint.copy(alpha = 0.20f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(guidance.issue.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black)
+            Text(guidance.issue.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            guidance.detail?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            guidance.issue.tips.forEach { tip ->
+                Text(tip, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -1641,8 +1746,14 @@ private fun ScheduleImportCandidateRow(candidate: ScheduleImportCandidate, onIgn
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("${candidate.date} - ${candidate.startTime} to ${candidate.endTime}", fontWeight = FontWeight.Black)
-                    Text("${candidate.label} - expected ${candidate.expectedExhaustionLevel} exhaustion", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (candidate.isDayOff) "${candidate.date} - Day off" else "${candidate.date} - ${candidate.startTime} to ${candidate.endTime}",
+                        fontWeight = FontWeight.Black
+                    )
+                    Text(
+                        if (candidate.isDayOff) "TidyPilot will plan this as a day off reset." else "${candidate.label} - expected ${candidate.expectedExhaustionLevel} exhaustion",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Text("Confidence: ${candidate.confidenceLabel}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 TextButton(onClick = onIgnore) { Text("Ignore") }

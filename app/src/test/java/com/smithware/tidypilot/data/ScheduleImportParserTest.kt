@@ -70,6 +70,66 @@ class ScheduleImportParserTest {
     }
 
     @Test
+    fun pairsWeekListEntriesWithTheirActualDays() {
+        val parsed = ScheduleImportParser.parse(
+            rawText = """
+                6:05 G O
+                Net hours: 45.25
+                Sat
+                4
+                Sun
+                5
+                Mon
+                6
+                Tue
+                7
+                Wed
+                8
+                Thu
+                Fri
+                2o publix.org/passpoi +
+                10
+                11 a.m.-7:30 p.m.
+                Asst. Deli Manager
+                Store #1640
+                8 hours
+                Not Scheduled
+                6 a.m. - 3 p.m.
+                Asst. Deli Manager
+                Store #1640
+                8.5 hours
+                Not Scheduled
+                6 a.m. - 5 p.m.
+                Asst. Deli Manager
+                Store #1640
+                10.25 hours
+                1 p.m. - 10:30 p.m.
+                9 a.m. - 7 p.m.
+            """.trimIndent(),
+            anchorDate = LocalDate.of(2026, 7, 8)
+        )
+
+        assertEquals(7, parsed.size)
+        assertEquals(LocalDate.of(2026, 7, 4), parsed[0].date)
+        assertEquals(LocalTime.of(11, 0), parsed[0].startTime)
+        assertEquals(LocalTime.of(19, 30), parsed[0].endTime)
+        assertEquals(LocalDate.of(2026, 7, 5), parsed[1].date)
+        assertEquals(true, parsed[1].isDayOff)
+        assertEquals(LocalDate.of(2026, 7, 6), parsed[2].date)
+        assertEquals(LocalTime.of(6, 0), parsed[2].startTime)
+        assertEquals(LocalTime.of(15, 0), parsed[2].endTime)
+        assertEquals(LocalDate.of(2026, 7, 7), parsed[3].date)
+        assertEquals(true, parsed[3].isDayOff)
+        assertEquals(LocalDate.of(2026, 7, 8), parsed[4].date)
+        assertEquals(LocalTime.of(6, 0), parsed[4].startTime)
+        assertEquals(LocalTime.of(17, 0), parsed[4].endTime)
+        assertEquals(LocalDate.of(2026, 7, 9), parsed[5].date)
+        assertEquals(LocalTime.of(13, 0), parsed[5].startTime)
+        assertEquals(LocalDate.of(2026, 7, 10), parsed[6].date)
+        assertEquals(LocalTime.of(9, 0), parsed[6].startTime)
+    }
+
+    @Test
     fun guidanceFlagsTimesWithoutDates() {
         val parsed = ScheduleImportParser.parse(
             rawText = "9:00 AM - 5:00 PM",

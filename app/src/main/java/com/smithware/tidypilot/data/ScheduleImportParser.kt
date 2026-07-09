@@ -85,6 +85,12 @@ object ScheduleImportGuidanceClassifier {
 }
 
 object ScheduleImportParser {
+    private data class DateSlot(
+        val date: LocalDate,
+        val lineIndex: Int,
+        val label: String
+    )
+
     private val timeRangeRegex = Regex(
         """(?i)\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|\u2013|\u2014|to)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\b"""
     )
@@ -93,11 +99,114 @@ object ScheduleImportParser {
     private val offRegex = Regex("""(?i)\b(off|pto|vacation|unavailable|day\s*off|not\s*scheduled)\b""")
 
     fun parse(rawText: String, anchorDate: LocalDate = LocalDate.now()): List<ScheduleImportCandidate> {
-        return expandedLines(rawText)
+        val weekListCandidates = parseWeekList(rawText, anchorDate)
+        val candidates = if (weekListCandidates.size >= 3) {
+            weekListCandidates
+        } else {
+            weekListCandidates + expandedLines(rawText)
             .mapNotNull { line -> parseLine(line, anchorDate) }
+        }
+        return candidates
             .distinctBy { "${it.date}-${it.startTime}-${it.endTime}-${it.isDayOff}" }
             .sortedWith(compareBy<ScheduleImportCandidate> { it.date }.thenBy { it.startTime })
             .toList()
+    }
+
+    private fun parseWeekList(rawText: String, anchorDate: LocalDate): List<ScheduleImportCandidate> {
+        val lines = normalizedLines(rawText)
+        val dateSlots = findDateSlots(lines, anchorDate)
+        if (dateSlots.size < 3) return emptyList()
+
+        val entryLines = lines
+            .drop((dateSlots.maxOfOrNull { it.lineIndex } ?: 0) + 1)
+            .filter { lineHasTime(it) || offRegex.containsMatchIn(it) }
+        if (entryLines.size < 2) return emptyList()
+
+        return entryLines
+            .take(dateSlots.size)
+            .mapIndexedNotNull { index, entry ->
+                parseEntryForDate(dateSlots[index].date, entry, dateSlots[index].label)
+            }
+    }
+
+    private fun findDateSlots(lines: List<String>, anchorDate: LocalDate): List<DateSlot> {
+        val headerDate = lines.firstNotNullOfOrNull { line ->
+            numericDateRegex.find(line)?.let { match ->
+                parseNumericDate(match, anchorDate.year)
+            }
+        }
+        val bareDays = lines.mapIndexedNotNull { index, line ->
+            val dayName = dayRegex.find(line)?.value?.takeIf { line.trim().equals(it, ignoreCase = true) }
+            dayName?.let { index to it }
+        }
+
+        var previousDate: LocalDate? = null
+        return bareDays.mapNotNull { (index, dayName) ->
+            val wanted = dayOfWeek(dayName) ?: return@mapNotNull null
+            val resolved = if (headerDate != null) {
+                val rawDelta = wanted.value - headerDate.dayOfWeek.value
+                headerDate.plusDays((if (rawDelta < 0) rawDelta + 7 else rawDelta).toLong())
+            } else {
+                val explicitDayNumber = followingDayNumberBeforeNextHeader(lines, index)
+                when {
+                    explicitDayNumber != null -> resolveDayNumber(java.time.YearMonth.from(anchorDate), explicitDayNumber)
+                    previousDate != null -> {
+                        val rawDelta = wanted.value - previousDate!!.dayOfWeek.value
+                        previousDate!!.plusDays((if (rawDelta <= 0) rawDelta + 7 else rawDelta).toLong())
+                    }
+                    else -> weekdayNearAnchor(wanted, anchorDate)
+                }
+            }
+            previousDate = resolved
+            DateSlot(resolved, index, dayName.take(3).replaceFirstChar { it.uppercase(Locale.US) })
+        }.distinctBy { it.date }
+    }
+
+    private fun followingDayNumberBeforeNextHeader(lines: List<String>, dayIndex: Int): Int? {
+        return ((dayIndex + 1)..(dayIndex + 4).coerceAtMost(lines.lastIndex))
+            .asSequence()
+            .takeWhile { !isBareDayHeader(lines[it]) }
+            .mapNotNull { lines[it].trim().toIntOrNull() }
+            .firstOrNull { it in 1..31 }
+    }
+
+    private fun weekdayNearAnchor(wanted: DayOfWeek, anchorDate: LocalDate): LocalDate {
+        val monday = anchorDate.minusDays((anchorDate.dayOfWeek.value - DayOfWeek.MONDAY.value).toLong())
+        return monday.plusDays((wanted.value - DayOfWeek.MONDAY.value).toLong())
+    }
+
+    private fun resolveDayNumber(yearMonth: java.time.YearMonth, day: Int): LocalDate {
+        val maxDay = yearMonth.lengthOfMonth()
+        return LocalDate.of(yearMonth.year, yearMonth.month, day.coerceIn(1, maxDay))
+    }
+
+    private fun parseNumericDate(match: MatchResult, fallbackYear: Int): LocalDate? {
+        val month = match.groupValues[1].toIntOrNull() ?: return null
+        val day = match.groupValues[2].toIntOrNull() ?: return null
+        val rawYear = match.groupValues[3]
+        val year = when {
+            rawYear.length == 2 -> 2000 + rawYear.toInt()
+            rawYear.length == 4 -> rawYear.toInt()
+            else -> fallbackYear
+        }
+        return runCatching { LocalDate.of(year, month, day) }.getOrNull()
+    }
+
+    private fun parseEntryForDate(date: LocalDate, line: String, dayLabel: String): ScheduleImportCandidate? {
+        if (offRegex.containsMatchIn(line)) {
+            return ScheduleImportCandidate(
+                date = date,
+                startTime = LocalTime.MIDNIGHT,
+                endTime = LocalTime.MIDNIGHT,
+                label = "Day off",
+                expectedExhaustionLevel = "low",
+                sourceLine = "$dayLabel ${date.dayOfMonth} $line",
+                confidenceLabel = "medium",
+                isDayOff = true
+            )
+        }
+
+        return parseTimedEntry(date, "$dayLabel ${date.dayOfMonth} $line", line, hasExplicitDate = false)
     }
 
     private fun parseLine(line: String, anchorDate: LocalDate): ScheduleImportCandidate? {
@@ -115,7 +224,16 @@ object ScheduleImportParser {
             )
         }
 
-        val range = timeRangeRegex.find(line) ?: return null
+        return parseTimedEntry(date, line, line, hasExplicitDate = numericDateRegex.containsMatchIn(line))
+    }
+
+    private fun parseTimedEntry(
+        date: LocalDate,
+        sourceLine: String,
+        timeLine: String,
+        hasExplicitDate: Boolean
+    ): ScheduleImportCandidate? {
+        val range = timeRangeRegex.find(timeLine) ?: return null
         val endPeriod = range.groupValues[6].normalizePeriod()
         val startPeriod = range.groupValues[3].normalizePeriod()
             ?: inferStartPeriod(range.groupValues[1].toInt(), range.groupValues[4].toInt(), endPeriod)
@@ -124,9 +242,9 @@ object ScheduleImportParser {
         val adjustedEnd = if (end <= start) end.plusHours(12) else end
         val durationHours = Duration.between(start, adjustedEnd).toHours()
         val label = when {
-            line.contains("open", ignoreCase = true) -> "Opening shift"
-            line.contains("clos", ignoreCase = true) -> "Closing shift"
-            line.contains("training", ignoreCase = true) -> "Training shift"
+            sourceLine.contains("open", ignoreCase = true) -> "Opening shift"
+            sourceLine.contains("clos", ignoreCase = true) -> "Closing shift"
+            sourceLine.contains("training", ignoreCase = true) -> "Training shift"
             else -> "Imported shift"
         }
         return ScheduleImportCandidate(
@@ -135,22 +253,18 @@ object ScheduleImportParser {
             endTime = adjustedEnd,
             label = label,
             expectedExhaustionLevel = if (durationHours >= 8) "high" else if (durationHours >= 6) "medium" else "low",
-            sourceLine = line,
-            confidenceLabel = if (numericDateRegex.containsMatchIn(line) && endPeriod != null) "high" else "medium"
+            sourceLine = sourceLine,
+            confidenceLabel = if (hasExplicitDate && endPeriod != null) "high" else "medium"
         )
     }
 
     private fun expandedLines(rawText: String): List<String> {
-        val lines = rawText.lineSequence()
-            .map(::normalizeLine)
-            .filter { it.isNotBlank() }
-            .filterNot(::isJunkLine)
-            .toList()
+        val lines = normalizedLines(rawText)
         val expanded = mutableListOf<String>()
         var lastDateHeader: String? = null
         lines.forEachIndexed { index, line ->
             expanded += line
-            if (lineHasDate(line)) lastDateHeader = line
+            if (lineHasDate(line) && !isBareDayHeader(line)) lastDateHeader = line
             val next = lines.getOrNull(index + 1)
             if (lineHasDate(line) && next != null && !lineHasDate(next) && (lineHasTime(next) || offRegex.containsMatchIn(next))) {
                 expanded += "$line $next"
@@ -160,6 +274,14 @@ object ScheduleImportParser {
             }
         }
         return expanded
+    }
+
+    private fun normalizedLines(rawText: String): List<String> {
+        return rawText.lineSequence()
+            .map(::normalizeLine)
+            .filter { it.isNotBlank() }
+            .filterNot(::isJunkLine)
+            .toList()
     }
 
     private fun normalizeLine(line: String): String {
@@ -179,6 +301,8 @@ object ScheduleImportParser {
     private fun lineHasDate(line: String): Boolean = numericDateRegex.containsMatchIn(line) || dayRegex.containsMatchIn(line)
 
     private fun lineHasTime(line: String): Boolean = timeRangeRegex.containsMatchIn(line)
+
+    private fun isBareDayHeader(line: String): Boolean = dayRegex.find(line)?.value?.let { line.trim().equals(it, ignoreCase = true) } == true
 
     private fun isJunkLine(line: String): Boolean {
         return line.equals("schedule", ignoreCase = true) ||

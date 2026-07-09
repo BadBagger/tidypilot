@@ -6,7 +6,7 @@
 - Studio: Smithware Studios
 - Package: `com.smithware.tidypilot`
 - Repo: `https://github.com/BadBagger/tidypilot`
-- Current release target: `v0.1.12-premium-reminders-supplies`
+- Current release target: `v0.1.13-schedule-import-hotfix`
 - Tagline: A tidy home plan that works around your real life.
 
 ## Purpose
@@ -110,15 +110,16 @@ no tracking, no paid API, and no network upload in v1.
 
 - `:app:testDebugUnitTest` passed on 2026-07-08 with scanner, room score,
   planning, starter routine profile, reminder planner, premium model, supply
-  suggestion, and online-reference scanner fixture tests.
+  suggestion, online-reference scanner fixture tests, and schedule import
+  week-list date pairing coverage.
 - `:app:assembleDebug` passed on 2026-07-08 with the known local Android
   toolchain.
 - `:app:assembleRelease` passed on 2026-07-08 with the known local Android
   toolchain.
-- Release `v0.1.12-premium-reminders-supplies` is the current release target.
-  It adds local reminder scheduling and reminder controls, optional supplies and
-  cleaning budget tracking, Today's Cleaning / One Thing / Room Status widgets,
-  and the local mock Premium model with no real billing yet.
+- Release `v0.1.13-schedule-import-hotfix` is the current release target. It
+  fixes Today task-card text wrapping and improves schedule-photo import so
+  week-list screenshots map shifts and days off to the correct dates instead of
+  collapsing entries onto one day.
 
 ## DevHub
 

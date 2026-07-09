@@ -34,8 +34,8 @@ android {
         applicationId = "com.smithware.tidypilot"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.1.12-premium-reminders-supplies"
+        versionCode = 14
+        versionName = "0.1.13-schedule-import-hotfix"
     }
 
     signingConfigs {

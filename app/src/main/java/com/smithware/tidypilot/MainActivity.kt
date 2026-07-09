@@ -62,9 +62,11 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -703,36 +705,76 @@ private fun TodayTaskRow(
 ) {
     val urgency = taskUrgency(task, state)
     val need = taskNeedScore(task, state)
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f), RoundedCornerShape(8.dp))
             .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            Modifier
-                .size(32.dp)
-                .background(urgency.color.copy(alpha = 0.16f), RoundedCornerShape(8.dp)),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("$rank", color = urgency.color, fontWeight = FontWeight.Black)
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .background(urgency.color.copy(alpha = 0.16f), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("$rank", color = urgency.color, fontWeight = FontWeight.Black)
+            }
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(task.name, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    taskMeta(task, state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                NeedStatusLine(need)
+            }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(task.name, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(taskMeta(task, state), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            NeedStatusLine(need)
-        }
-        Box(
-            Modifier
-                .background(needStatusColor(need).copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                .padding(horizontal = 8.dp, vertical = 5.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(needFriendlyLabel(need.status), color = needStatusColor(need), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
+            Box(
+                Modifier
+                    .weight(1f)
+                    .background(needStatusColor(need).copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    needFriendlyLabel(need.status),
+                    color = needStatusColor(need),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            FilledTonalIconButton(
+                onClick = { viewModel.markComplete(task) },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = TidyLeaf.copy(alpha = 0.18f))
+            ) {
+                Icon(Icons.Default.CheckCircle, "Complete", tint = TidyLeaf)
+            }
+            FilledTonalIconButton(
+                onClick = { nav.navigate("detail/task/${task.id}") },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Icon(Icons.Default.Edit, "Task detail")
+            }
         }
-        IconButton(onClick = { viewModel.markComplete(task) }) { Icon(Icons.Default.CheckCircle, "Complete", tint = TidyLeaf) }
-        IconButton(onClick = { nav.navigate("detail/task/${task.id}") }) { Icon(Icons.Default.Edit, "Task detail") }
     }
 }
 

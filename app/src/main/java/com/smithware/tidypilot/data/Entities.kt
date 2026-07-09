@@ -26,8 +26,41 @@ data class CleaningTaskEntity(
     val nextDueAt: LocalDate? = LocalDate.now(),
     val isArchived: Boolean = false,
     val skippedCount: Int = 0,
+    val assignedTo: String? = null,
+    val householdId: String? = null,
+    val createdBy: String? = null,
     val createdAt: LocalDateTime = LocalDateTime.now(),
     val updatedAt: LocalDateTime = LocalDateTime.now()
+)
+
+@Entity(tableName = "cleaning_supplies")
+data class CleaningSupplyEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val category: String = "general",
+    val estimatedCostCents: Int = 0,
+    val isRunningLow: Boolean = false,
+    val isOnShoppingList: Boolean = false,
+    val notes: String = "",
+    val createdAt: LocalDateTime = LocalDateTime.now(),
+    val updatedAt: LocalDateTime = LocalDateTime.now()
+)
+
+@Entity(tableName = "task_supplies", primaryKeys = ["taskId", "supplyId"])
+data class TaskSupplyEntity(
+    val taskId: String,
+    val supplyId: String
+)
+
+@Entity(tableName = "supply_expenses")
+data class SupplyExpenseEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val supplyId: String? = null,
+    val name: String,
+    val costCents: Int,
+    val purchasedAt: LocalDate = LocalDate.now(),
+    val notes: String = "",
+    val createdAt: LocalDateTime = LocalDateTime.now()
 )
 
 @Entity(tableName = "rooms")
@@ -95,7 +128,9 @@ data class TaskCompletionEntity(
     val completedAt: LocalDateTime = LocalDateTime.now(),
     val durationMinutes: Int = 0,
     val energyLevelAtCompletion: String = "medium",
-    val notes: String = ""
+    val notes: String = "",
+    val householdId: String? = null,
+    val completedBy: String? = null
 )
 
 @Entity(tableName = "room_photo_scans")
@@ -154,6 +189,10 @@ data class AppSettingsEntity(
     val preferredReminderTime: String = "18:30",
     val quietHoursStart: String = "21:00",
     val quietHoursEnd: String = "08:00",
+    val quietDays: String = "",
+    val maxRemindersPerDay: Int = 1,
+    val reminderTone: String = "Gentle",
+    val enabledReminderTypes: String = "daily|task|room|weekly|seasonal|quick_win",
     val lowEnergyReminderMode: String = "gentle",
     val workdayReminderBehavior: String = "after shift",
     val dayOffReminderBehavior: String = "morning reset",
@@ -162,6 +201,11 @@ data class AppSettingsEntity(
     val saveProcessedScanImages: Boolean = false,
     val requireScanReview: Boolean = true,
     val defaultScanConfidenceThreshold: String = "medium",
+    val supplyTrackingEnabled: Boolean = true,
+    val monthlyCleaningBudgetCents: Int = 0,
+    val premiumEntitlement: String = "free",
+    val premiumPlan: String = "",
+    val premiumExpiresAt: String = "",
     val themeMode: String = "system"
 )
 

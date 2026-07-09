@@ -6,6 +6,9 @@ import java.time.LocalTime
 
 class TidyPilotRepository(private val dao: TidyPilotDao) {
     val tasks = dao.observeTasks()
+    val supplies = dao.observeSupplies()
+    val taskSupplies = dao.observeTaskSupplies()
+    val supplyExpenses = dao.observeSupplyExpenses()
     val rooms = dao.observeRooms()
     val shifts = dao.observeShifts()
     val energy = dao.observeEnergy()
@@ -18,6 +21,7 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
     suspend fun seedIfEmpty() {
         if (dao.roomCount() != 0) {
             ensureDefaultRooms()
+            ensureDefaultSupplies()
             return
         }
         dao.saveSettings(AppSettingsEntity())
@@ -48,6 +52,7 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
             CleaningTaskEntity(name = "Sort one basement shelf", roomId = basement.id, description = "Group loose items on one shelf or rack without trying to fix the whole room.", priority = "normal", estimatedMinutes = 12, difficulty = "medium", energyRequired = "medium", frequencyType = "weekly", preferredTime = "day off", photoDetectableCategory = "clutter", nextDueAt = today.plusDays(2))
         )
         tasks.forEach { dao.saveTask(it) }
+        seedStarterSupplies(tasks)
 
         dao.saveEnergy(EnergyCheckInEntity(date = today, energyLevel = "medium", moodLabel = "tired but okay", availableMinutes = 20, afterWorkExhaustion = false, notes = "Good enough for today."))
         dao.saveEnergy(EnergyCheckInEntity(date = today.minusDays(1), energyLevel = "low", moodLabel = "after shift tired", availableMinutes = 10, afterWorkExhaustion = true, notes = "Only wanted a tiny reset."))
@@ -94,6 +99,10 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
     private suspend fun ensureDefaultRooms() {
         val existing = dao.roomNames().map { it.lowercase() }.toSet()
         defaultRooms().filter { it.name.lowercase() !in existing }.forEach { dao.saveRoom(it) }
+    }
+
+    private suspend fun ensureDefaultSupplies() {
+        if (dao.supplyCount() == 0) seedStarterSupplies(dao.activeTasksOnce())
     }
 
     private fun defaultRooms(): List<RoomEntity> = listOf(
@@ -160,6 +169,9 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
         dao.clearPlans()
         dao.clearEnergy()
         dao.clearShifts()
+        dao.clearSupplyExpenses()
+        dao.clearTaskSupplies()
+        dao.clearSupplies()
         dao.clearTasks()
         dao.clearRooms()
         dao.clearSettings()
@@ -167,12 +179,25 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
     }
 
     suspend fun saveTask(task: CleaningTaskEntity) = dao.saveTask(task.copy(updatedAt = LocalDateTime.now()))
+    suspend fun saveSupply(supply: CleaningSupplyEntity) = dao.saveSupply(supply.copy(updatedAt = LocalDateTime.now()))
+    suspend fun deleteSupply(supply: CleaningSupplyEntity) = dao.deleteSupply(supply)
+    suspend fun linkSupplyToTask(taskId: String, supplyId: String) = dao.saveTaskSupply(TaskSupplyEntity(taskId, supplyId))
+    suspend fun unlinkSupplyFromTask(taskId: String, supplyId: String) = dao.unlinkSupplyFromTask(taskId, supplyId)
+    suspend fun markSupplyRunningLow(supply: CleaningSupplyEntity, runningLow: Boolean) =
+        dao.markSupplyRunningLow(supply.id, runningLow, LocalDateTime.now())
+    suspend fun markSupplyOnShoppingList(supply: CleaningSupplyEntity, onList: Boolean) =
+        dao.markSupplyOnShoppingList(supply.id, onList, LocalDateTime.now())
+    suspend fun addSuppliesToShoppingList(ids: List<String>) {
+        if (ids.isNotEmpty()) dao.addSuppliesToShoppingList(ids, LocalDateTime.now())
+    }
+    suspend fun saveSupplyExpense(expense: SupplyExpenseEntity) = dao.saveSupplyExpense(expense)
     suspend fun saveRoom(room: RoomEntity) = dao.saveRoom(room.copy(updatedAt = LocalDateTime.now()))
     suspend fun saveShift(shift: WorkShiftEntity) = dao.saveShift(shift.copy(updatedAt = LocalDateTime.now()))
     suspend fun saveEnergy(checkIn: EnergyCheckInEntity) = dao.saveEnergy(checkIn)
     suspend fun savePlan(plan: DailyCleaningPlanEntity) = dao.savePlan(plan.copy(updatedAt = LocalDateTime.now()))
     suspend fun deleteTask(task: CleaningTaskEntity) {
         dao.clearCompletionsForTask(task.id)
+        dao.clearSuppliesForTask(task.id)
         dao.deleteTask(task)
     }
 
@@ -189,7 +214,16 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
 
     suspend fun markTaskComplete(task: CleaningTaskEntity, energy: String) {
         val now = LocalDateTime.now()
-        dao.saveCompletion(TaskCompletionEntity(taskId = task.id, completedAt = now, durationMinutes = task.estimatedMinutes, energyLevelAtCompletion = energy))
+        dao.saveCompletion(
+            TaskCompletionEntity(
+                taskId = task.id,
+                completedAt = now,
+                durationMinutes = task.estimatedMinutes,
+                energyLevelAtCompletion = energy,
+                householdId = task.householdId,
+                completedBy = task.assignedTo
+            )
+        )
         dao.markTaskComplete(task.id, now, nextDate(task.frequencyType, now.toLocalDate()))
     }
 
@@ -213,9 +247,37 @@ class TidyPilotRepository(private val dao: TidyPilotDao) {
         dao.clearPlans()
         dao.clearEnergy()
         dao.clearShifts()
+        dao.clearSupplyExpenses()
+        dao.clearTaskSupplies()
+        dao.clearSupplies()
         dao.clearTasks()
         dao.clearRooms()
         dao.clearSettings()
+    }
+
+    private suspend fun seedStarterSupplies(tasks: List<CleaningTaskEntity>) {
+        val supplies = listOf(
+            CleaningSupplyEntity(name = "Dish soap", category = "kitchen", estimatedCostCents = 450),
+            CleaningSupplyEntity(name = "Trash bags", category = "trash", estimatedCostCents = 850, isRunningLow = true, isOnShoppingList = true),
+            CleaningSupplyEntity(name = "Microfiber cloths", category = "surface", estimatedCostCents = 700),
+            CleaningSupplyEntity(name = "Bathroom cleaner", category = "bathroom", estimatedCostCents = 550),
+            CleaningSupplyEntity(name = "Toilet cleaner", category = "bathroom", estimatedCostCents = 500),
+            CleaningSupplyEntity(name = "Toilet brush", category = "bathroom", estimatedCostCents = 900),
+            CleaningSupplyEntity(name = "Gloves", category = "general", estimatedCostCents = 600),
+            CleaningSupplyEntity(name = "Laundry detergent", category = "laundry", estimatedCostCents = 1299),
+            CleaningSupplyEntity(name = "Vacuum", category = "floors", estimatedCostCents = 0),
+            CleaningSupplyEntity(name = "Mop", category = "floors", estimatedCostCents = 1500),
+            CleaningSupplyEntity(name = "Floor cleaner", category = "floors", estimatedCostCents = 650),
+            CleaningSupplyEntity(name = "Bucket", category = "floors", estimatedCostCents = 700)
+        )
+        supplies.forEach { dao.saveSupply(it) }
+        tasks.forEach { task ->
+            suggestedSupplyNames(task).mapNotNull { name -> supplies.firstOrNull { it.name == name } }.forEach { supply ->
+                dao.saveTaskSupply(TaskSupplyEntity(task.id, supply.id))
+            }
+        }
+        dao.saveSupplyExpense(SupplyExpenseEntity(name = "Trash bags", costCents = 850, purchasedAt = LocalDate.now().minusDays(4), notes = "Starter example purchase."))
+        dao.saveSupplyExpense(SupplyExpenseEntity(name = "Bathroom cleaner", costCents = 550, purchasedAt = LocalDate.now().minusDays(2), notes = "Starter example purchase."))
     }
 
     suspend fun saveScanAnalysis(room: RoomEntity, imageUri: String, note: String, output: AnalysisOutput): RoomPhotoScanEntity {
@@ -290,6 +352,29 @@ internal data class StarterRoutineTemplate(
     val deepClean: Boolean = false,
     val startOffsetDays: Long = 0
 )
+
+fun suggestedSupplyNames(task: CleaningTaskEntity): List<String> {
+    val searchable = "${task.name} ${task.description} ${task.photoDetectableCategory}".lowercase()
+    return when {
+        listOf("mop", "floor cleaner", "floor", "sweep").any { it in searchable } ->
+            listOf("Mop", "Floor cleaner", "Bucket")
+        "toilet" in searchable ->
+            listOf("Toilet cleaner", "Toilet brush", "Gloves")
+        listOf("bathroom", "sink", "mirror", "shower").any { it in searchable } ->
+            listOf("Bathroom cleaner", "Microfiber cloths", "Gloves")
+        listOf("dish", "sink", "dishwasher").any { it in searchable } ->
+            listOf("Dish soap", "Microfiber cloths")
+        listOf("trash", "garbage").any { it in searchable } ->
+            listOf("Trash bags", "Gloves")
+        listOf("laundry", "clothes", "towels", "sheets").any { it in searchable } ->
+            listOf("Laundry detergent")
+        listOf("vacuum", "rug", "carpet").any { it in searchable } ->
+            listOf("Vacuum")
+        listOf("counter", "surface", "wipe", "table").any { it in searchable } ->
+            listOf("Microfiber cloths", "Bathroom cleaner")
+        else -> emptyList()
+    }
+}
 
 internal fun starterRoutineTemplates(profile: StarterRoutineProfile): List<StarterRoutineTemplate> {
     val goals = profile.goals.map { it.lowercase() }.toSet()

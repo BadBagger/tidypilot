@@ -1,0 +1,94 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_room_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_bg"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <TextView
+        android:id="@+id/widget_room_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Room status"
+        android:textColor="#14322E"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_room_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Needs attention"
+        android:textColor="#167F75"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_room_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Set up TidyPilot to see today's room status."
+        android:textColor="#14322E"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/widget_room_row_1"
+        style="@style/TidyPilotWidgetRoomRow">
+
+        <LinearLayout style="@style/TidyPilotWidgetTaskTextColumn">
+            <TextView
+                android:id="@+id/widget_room_name_1"
+                style="@style/TidyPilotWidgetTaskTitle" />
+            <TextView
+                android:id="@+id/widget_room_meta_1"
+                style="@style/TidyPilotWidgetTaskMeta" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_room_score_1"
+            style="@style/TidyPilotWidgetScoreBadge" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_room_row_2"
+        style="@style/TidyPilotWidgetRoomRow">
+
+        <LinearLayout style="@style/TidyPilotWidgetTaskTextColumn">
+            <TextView
+                android:id="@+id/widget_room_name_2"
+                style="@style/TidyPilotWidgetTaskTitle" />
+            <TextView
+                android:id="@+id/widget_room_meta_2"
+                style="@style/TidyPilotWidgetTaskMeta" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_room_score_2"
+            style="@style/TidyPilotWidgetScoreBadge" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_room_row_3"
+        style="@style/TidyPilotWidgetRoomRow">
+
+        <LinearLayout style="@style/TidyPilotWidgetTaskTextColumn">
+            <TextView
+                android:id="@+id/widget_room_name_3"
+                style="@style/TidyPilotWidgetTaskTitle" />
+            <TextView
+                android:id="@+id/widget_room_meta_3"
+                style="@style/TidyPilotWidgetTaskMeta" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_room_score_3"
+            style="@style/TidyPilotWidgetScoreBadge" />
+    </LinearLayout>
+</LinearLayout>

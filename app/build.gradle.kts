@@ -34,8 +34,8 @@ android {
         applicationId = "com.smithware.tidypilot"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.1.11-widgets-home-flow"
+        versionCode = 13
+        versionName = "0.1.12-premium-reminders-supplies"
     }
 
     signingConfigs {

@@ -80,18 +80,98 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/widget_today_tasks"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="9dp"
         android:layout_weight="1"
-        android:ellipsize="end"
-        android:lineSpacingExtra="2dp"
-        android:maxLines="4"
-        android:text="1. Clear one surface - 5 min"
-        android:textColor="#14322E"
-        android:textSize="13sp" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_today_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No chores queued. Add a task or scan a room."
+            android:textColor="#14322E"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/widget_task_row_1"
+            style="@style/TidyPilotWidgetTaskRow">
+
+            <TextView
+                android:id="@+id/widget_task_check_1"
+                style="@style/TidyPilotWidgetCheckbox" />
+
+            <LinearLayout style="@style/TidyPilotWidgetTaskTextColumn">
+                <TextView
+                    android:id="@+id/widget_task_title_1"
+                    style="@style/TidyPilotWidgetTaskTitle" />
+
+                <TextView
+                    android:id="@+id/widget_task_meta_1"
+                    style="@style/TidyPilotWidgetTaskMeta" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_task_row_2"
+            style="@style/TidyPilotWidgetTaskRow">
+
+            <TextView
+                android:id="@+id/widget_task_check_2"
+                style="@style/TidyPilotWidgetCheckbox" />
+
+            <LinearLayout style="@style/TidyPilotWidgetTaskTextColumn">
+                <TextView
+                    android:id="@+id/widget_task_title_2"
+                    style="@style/TidyPilotWidgetTaskTitle" />
+
+                <TextView
+                    android:id="@+id/widget_task_meta_2"
+                    style="@style/TidyPilotWidgetTaskMeta" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_task_row_3"
+            style="@style/TidyPilotWidgetTaskRow">
+
+            <TextView
+                android:id="@+id/widget_task_check_3"
+                style="@style/TidyPilotWidgetCheckbox" />
+
+            <LinearLayout style="@style/TidyPilotWidgetTaskTextColumn">
+                <TextView
+                    android:id="@+id/widget_task_title_3"
+                    style="@style/TidyPilotWidgetTaskTitle" />
+
+                <TextView
+                    android:id="@+id/widget_task_meta_3"
+                    style="@style/TidyPilotWidgetTaskMeta" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_task_row_4"
+            style="@style/TidyPilotWidgetTaskRow">
+
+            <TextView
+                android:id="@+id/widget_task_check_4"
+                style="@style/TidyPilotWidgetCheckbox" />
+
+            <LinearLayout style="@style/TidyPilotWidgetTaskTextColumn">
+                <TextView
+                    android:id="@+id/widget_task_title_4"
+                    style="@style/TidyPilotWidgetTaskTitle" />
+
+                <TextView
+                    android:id="@+id/widget_task_meta_4"
+                    style="@style/TidyPilotWidgetTaskMeta" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 
     <TextView
         android:id="@+id/widget_today_action"

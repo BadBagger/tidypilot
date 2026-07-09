@@ -71,8 +71,10 @@ class PlanningEngine {
                     shiftSoon = shiftSoon,
                     tooTight = tooTight,
                     roughRoomIds = roughRoomIds,
+                    room = rooms.firstOrNull { it.id == task.roomId },
                     roomPriority = roomPriority[task.roomId] ?: 0,
                     roomScore = roomScores[task.roomId] ?: 75,
+                    completions = completions,
                     recentlyCompletedAt = recentCompletionByTask[task.id],
                     minimumExhaustedMinutes = minimumExhaustedMinutes
                 )
@@ -127,8 +129,10 @@ class PlanningEngine {
         shiftSoon: Boolean,
         tooTight: Boolean,
         roughRoomIds: Set<String>,
+        room: RoomEntity?,
         roomPriority: Int,
         roomScore: Int,
+        completions: List<TaskCompletionEntity>,
         recentlyCompletedAt: LocalDateTime?,
         minimumExhaustedMinutes: Int
     ): PlanRecommendation? {
@@ -149,6 +153,16 @@ class PlanningEngine {
 
         var score = 0
         val reasons = mutableListOf<String>()
+        val need = calculateTaskNeedScore(task, room, completions, today)
+
+        // Need score combines rhythm, skips, room/task priority, effort, and
+        // high-impact categories like trash, dishes, hygiene, laundry, clutter,
+        // smell, and visual mess. The boost is strong enough to guide ordering
+        // without overpowering energy and time-fit gates.
+        score += (need.score / 4).coerceIn(0, 25)
+        if (need.status == "Due soon" || need.status == "Needs attention" || need.status == "Overdue") {
+            reasons += need.status
+        }
 
         // Due and overdue chores should surface, but the overdue bonus is capped
         // so one old chore cannot crowd out every realistic quick win.

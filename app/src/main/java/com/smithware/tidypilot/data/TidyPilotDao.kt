@@ -14,6 +14,15 @@ interface TidyPilotDao {
     @Query("SELECT * FROM cleaning_tasks WHERE isArchived = 0 ORDER BY priority DESC, estimatedMinutes ASC")
     fun observeTasks(): Flow<List<CleaningTaskEntity>>
 
+    @Query("SELECT * FROM cleaning_supplies ORDER BY isOnShoppingList DESC, isRunningLow DESC, name ASC")
+    fun observeSupplies(): Flow<List<CleaningSupplyEntity>>
+
+    @Query("SELECT * FROM task_supplies")
+    fun observeTaskSupplies(): Flow<List<TaskSupplyEntity>>
+
+    @Query("SELECT * FROM supply_expenses ORDER BY purchasedAt DESC, createdAt DESC")
+    fun observeSupplyExpenses(): Flow<List<SupplyExpenseEntity>>
+
     @Query("SELECT * FROM rooms WHERE isArchived = 0 ORDER BY priority DESC, name ASC")
     fun observeRooms(): Flow<List<RoomEntity>>
 
@@ -38,8 +47,14 @@ interface TidyPilotDao {
     @Query("SELECT * FROM app_settings WHERE id = 'local_settings' LIMIT 1")
     fun observeSettings(): Flow<AppSettingsEntity?>
 
+    @Query("SELECT * FROM app_settings WHERE id = 'local_settings' LIMIT 1")
+    suspend fun settingsOnce(): AppSettingsEntity?
+
     @Query("SELECT COUNT(*) FROM rooms")
     suspend fun roomCount(): Int
+
+    @Query("SELECT COUNT(*) FROM cleaning_supplies")
+    suspend fun supplyCount(): Int
 
     @Query("SELECT name FROM rooms")
     suspend fun roomNames(): List<String>
@@ -53,6 +68,9 @@ interface TidyPilotDao {
     @Query("SELECT * FROM cleaning_tasks WHERE isArchived = 0 ORDER BY CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END DESC, nextDueAt ASC, estimatedMinutes ASC")
     suspend fun activeTasksOnce(): List<CleaningTaskEntity>
 
+    @Query("SELECT * FROM cleaning_tasks WHERE id = :id LIMIT 1")
+    suspend fun taskById(id: String): CleaningTaskEntity?
+
     @Query("SELECT * FROM cleaning_tasks WHERE isArchived = 0 AND (nextDueAt IS NULL OR nextDueAt <= :today) ORDER BY CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END DESC, estimatedMinutes ASC LIMIT :limit")
     suspend fun dueTasksOnce(today: LocalDate, limit: Int): List<CleaningTaskEntity>
 
@@ -61,6 +79,9 @@ interface TidyPilotDao {
 
     @Query("SELECT COUNT(*) FROM task_completions WHERE completedAt >= :start AND completedAt < :end")
     suspend fun completionCountBetween(start: LocalDateTime, end: LocalDateTime): Int
+
+    @Query("SELECT * FROM task_completions ORDER BY completedAt DESC")
+    suspend fun completionsOnce(): List<TaskCompletionEntity>
 
     @Query("SELECT lower(name) || '|' || roomId FROM cleaning_tasks WHERE isArchived = 0")
     suspend fun activeTaskRoomKeys(): List<String>
@@ -84,6 +105,9 @@ interface TidyPilotDao {
     suspend fun averageRoomScore(): Double?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveTask(task: CleaningTaskEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveSupply(supply: CleaningSupplyEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveTaskSupply(link: TaskSupplyEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveSupplyExpense(expense: SupplyExpenseEntity)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveRoom(room: RoomEntity)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveShift(shift: WorkShiftEntity)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveEnergy(checkIn: EnergyCheckInEntity)
@@ -94,6 +118,7 @@ interface TidyPilotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveSettings(settings: AppSettingsEntity)
 
     @Delete suspend fun deleteTask(task: CleaningTaskEntity)
+    @Delete suspend fun deleteSupply(supply: CleaningSupplyEntity)
     @Delete suspend fun deleteRoom(room: RoomEntity)
     @Delete suspend fun deleteShift(shift: WorkShiftEntity)
 
@@ -133,6 +158,21 @@ interface TidyPilotDao {
     @Query("DELETE FROM task_completions WHERE taskId = :taskId")
     suspend fun clearCompletionsForTask(taskId: String)
 
+    @Query("DELETE FROM task_supplies WHERE taskId = :taskId")
+    suspend fun clearSuppliesForTask(taskId: String)
+
+    @Query("DELETE FROM task_supplies WHERE taskId = :taskId AND supplyId = :supplyId")
+    suspend fun unlinkSupplyFromTask(taskId: String, supplyId: String)
+
+    @Query("UPDATE cleaning_supplies SET isRunningLow = :runningLow, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markSupplyRunningLow(id: String, runningLow: Boolean, updatedAt: LocalDateTime)
+
+    @Query("UPDATE cleaning_supplies SET isOnShoppingList = :onList, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markSupplyOnShoppingList(id: String, onList: Boolean, updatedAt: LocalDateTime)
+
+    @Query("UPDATE cleaning_supplies SET isOnShoppingList = 1, updatedAt = :updatedAt WHERE id IN (:ids)")
+    suspend fun addSuppliesToShoppingList(ids: List<String>, updatedAt: LocalDateTime)
+
     @Query("DELETE FROM daily_cleaning_plans")
     suspend fun clearPlans()
 
@@ -144,6 +184,15 @@ interface TidyPilotDao {
 
     @Query("DELETE FROM cleaning_tasks")
     suspend fun clearTasks()
+
+    @Query("DELETE FROM cleaning_supplies")
+    suspend fun clearSupplies()
+
+    @Query("DELETE FROM task_supplies")
+    suspend fun clearTaskSupplies()
+
+    @Query("DELETE FROM supply_expenses")
+    suspend fun clearSupplyExpenses()
 
     @Query("DELETE FROM rooms")
     suspend fun clearRooms()

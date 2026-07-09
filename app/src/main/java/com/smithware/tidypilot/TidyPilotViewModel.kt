@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smithware.tidypilot.data.AppSettingsEntity
 import com.smithware.tidypilot.data.CleaningTaskEntity
+import com.smithware.tidypilot.data.CleaningSupplyEntity
 import com.smithware.tidypilot.data.DailyCleaningPlanEntity
 import com.smithware.tidypilot.data.EnergyCheckInEntity
 import com.smithware.tidypilot.data.PlanningEngine
@@ -15,11 +16,14 @@ import com.smithware.tidypilot.data.RoomPhotoAnalyzer
 import com.smithware.tidypilot.data.RoomPhotoScanEntity
 import com.smithware.tidypilot.data.ScanIssueEntity
 import com.smithware.tidypilot.data.StarterRoutineProfile
+import com.smithware.tidypilot.data.SupplyExpenseEntity
 import com.smithware.tidypilot.data.TaskCompletionEntity
+import com.smithware.tidypilot.data.TaskSupplyEntity
 import com.smithware.tidypilot.data.TidyPilotDatabase
 import com.smithware.tidypilot.data.TidyPilotRepository
 import com.smithware.tidypilot.data.WorkShiftEntity
 import com.smithware.tidypilot.data.pipe
+import com.smithware.tidypilot.data.suggestedSupplyNames
 import com.smithware.tidypilot.data.unpipe
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -32,6 +36,9 @@ import kotlinx.coroutines.launch
 
 data class TidyPilotState(
     val tasks: List<CleaningTaskEntity> = emptyList(),
+    val supplies: List<CleaningSupplyEntity> = emptyList(),
+    val taskSupplies: List<TaskSupplyEntity> = emptyList(),
+    val supplyExpenses: List<SupplyExpenseEntity> = emptyList(),
     val rooms: List<RoomEntity> = emptyList(),
     val shifts: List<WorkShiftEntity> = emptyList(),
     val energy: List<EnergyCheckInEntity> = emptyList(),
@@ -56,6 +63,7 @@ data class TidyPilotState(
     val streak: Int = calculateStreak(completions)
     val averageTidyScore: Int = if (rooms.isEmpty()) 0 else rooms.map { it.tidyScore }.average().toInt()
     val lowEnergyTask: CleaningTaskEntity? = tasks.filter { it.energyRequired == "low" && it.estimatedMinutes <= settings.minimumExhaustedTaskMinutes.coerceAtLeast(5) }.minByOrNull { it.estimatedMinutes }
+    val shoppingList: List<CleaningSupplyEntity> = supplies.filter { it.isOnShoppingList || it.isRunningLow }
 }
 
 private fun calculateStreak(completions: List<TaskCompletionEntity>): Int {
@@ -77,6 +85,9 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     val state: StateFlow<TidyPilotState> = combine(
         repository.tasks,
+        repository.supplies,
+        repository.taskSupplies,
+        repository.supplyExpenses,
         repository.rooms,
         repository.shifts,
         repository.energy,
@@ -93,18 +104,21 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
         @Suppress("UNCHECKED_CAST")
         TidyPilotState(
             tasks = values[0] as List<CleaningTaskEntity>,
-            rooms = values[1] as List<RoomEntity>,
-            shifts = values[2] as List<WorkShiftEntity>,
-            energy = values[3] as List<EnergyCheckInEntity>,
-            plans = values[4] as List<DailyCleaningPlanEntity>,
-            completions = values[5] as List<TaskCompletionEntity>,
-            scans = values[6] as List<RoomPhotoScanEntity>,
-            issues = values[7] as List<ScanIssueEntity>,
-            settings = values[8] as? AppSettingsEntity ?: AppSettingsEntity(),
-            themeMode = values[9] as String,
-            remindersEnabled = values[10] as Boolean,
-            savePhotosLocally = values[11] as Boolean,
-            onboardingComplete = values[12] as Boolean
+            supplies = values[1] as List<CleaningSupplyEntity>,
+            taskSupplies = values[2] as List<TaskSupplyEntity>,
+            supplyExpenses = values[3] as List<SupplyExpenseEntity>,
+            rooms = values[4] as List<RoomEntity>,
+            shifts = values[5] as List<WorkShiftEntity>,
+            energy = values[6] as List<EnergyCheckInEntity>,
+            plans = values[7] as List<DailyCleaningPlanEntity>,
+            completions = values[8] as List<TaskCompletionEntity>,
+            scans = values[9] as List<RoomPhotoScanEntity>,
+            issues = values[10] as List<ScanIssueEntity>,
+            settings = values[11] as? AppSettingsEntity ?: AppSettingsEntity(),
+            themeMode = values[12] as String,
+            remindersEnabled = values[13] as Boolean,
+            savePhotosLocally = values[14] as Boolean,
+            onboardingComplete = values[15] as Boolean
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TidyPilotState())
 
@@ -210,9 +224,14 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
                     isQuickResetTask = task.isQuickResetTask,
                     isDeepCleanTask = task.isDeepCleanTask,
                     photoDetectableCategory = task.photoDetectableCategory,
-                    nextDueAt = task.nextDueAt
+                    nextDueAt = task.nextDueAt,
+                    assignedTo = task.assignedTo?.trim()?.ifBlank { null },
+                    householdId = existing?.householdId ?: task.householdId,
+                    createdBy = existing?.createdBy ?: task.createdBy
                 )
             )
+            TidyReminderManager.cancelTaskReminder(getApplication(), task.id)
+            TidyReminderManager.scheduleNext(getApplication(), state.value.settings)
             refreshWidgets()
         }
         return null
@@ -253,6 +272,8 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
     fun markComplete(task: CleaningTaskEntity) {
         viewModelScope.launch {
             repository.markTaskComplete(task, state.value.latestCheckIn?.energyLevel ?: "medium")
+            TidyReminderManager.cancelTaskReminder(getApplication(), task.id)
+            TidyReminderManager.scheduleNext(getApplication(), state.value.settings)
             replan()
         }
     }
@@ -274,9 +295,70 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteTask(task: CleaningTaskEntity) {
         viewModelScope.launch {
             repository.deleteTask(task)
+            TidyReminderManager.cancelTaskReminder(getApplication(), task.id)
+            TidyReminderManager.scheduleNext(getApplication(), state.value.settings)
             replan()
         }
     }
+
+    fun saveSupply(name: String, category: String, estimatedCostCents: Int, notes: String = ""): String? {
+        if (name.isBlank()) return "Supply name is required."
+        viewModelScope.launch {
+            repository.saveSupply(
+                CleaningSupplyEntity(
+                    name = name.trim(),
+                    category = category.trim().ifBlank { "general" },
+                    estimatedCostCents = estimatedCostCents.coerceAtLeast(0),
+                    notes = notes.trim()
+                )
+            )
+        }
+        return null
+    }
+
+    fun linkSupplyToTask(taskId: String, supplyId: String) {
+        viewModelScope.launch { repository.linkSupplyToTask(taskId, supplyId) }
+    }
+
+    fun unlinkSupplyFromTask(taskId: String, supplyId: String) {
+        viewModelScope.launch { repository.unlinkSupplyFromTask(taskId, supplyId) }
+    }
+
+    fun markSupplyRunningLow(supply: CleaningSupplyEntity, runningLow: Boolean) {
+        viewModelScope.launch { repository.markSupplyRunningLow(supply, runningLow) }
+    }
+
+    fun markSupplyOnShoppingList(supply: CleaningSupplyEntity, onList: Boolean) {
+        viewModelScope.launch { repository.markSupplyOnShoppingList(supply, onList) }
+    }
+
+    fun addMissingSuppliesToShoppingList(task: CleaningTaskEntity) {
+        viewModelScope.launch {
+            val current = state.value
+            val linkedIds = current.taskSupplies.filter { it.taskId == task.id }.map { it.supplyId }.toSet()
+            val suggestedIds = suggestedSupplyNames(task).mapNotNull { name ->
+                current.supplies.firstOrNull { it.name.equals(name, ignoreCase = true) }?.id
+            }
+            repository.addSuppliesToShoppingList((linkedIds + suggestedIds).toList())
+        }
+    }
+
+    fun saveSupplyExpense(name: String, costText: String, supplyId: String? = null, notes: String = ""): String? {
+        val cents = dollarsToCents(costText) ?: return "Enter a cost like 4.50."
+        if (name.isBlank()) return "Supply name is required."
+        viewModelScope.launch {
+            repository.saveSupplyExpense(
+                SupplyExpenseEntity(
+                    supplyId = supplyId,
+                    name = name.trim(),
+                    costCents = cents,
+                    notes = notes.trim()
+                )
+            )
+        }
+        return null
+    }
+
     fun deleteRoom(room: RoomEntity) { viewModelScope.launch { repository.deleteRoom(room) } }
     fun archiveRoom(room: RoomEntity) { viewModelScope.launch { repository.archiveRoom(room) } }
     fun deleteShift(shift: WorkShiftEntity) {
@@ -340,11 +422,28 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun updateSettings(settings: AppSettingsEntity, themeMode: String, reminders: Boolean, savePhotos: Boolean) {
         viewModelScope.launch {
-            repository.updateSettings(settings.copy(themeMode = themeMode, reminderEnabled = reminders, savePhotosLocally = savePhotos))
+            val updated = settings.copy(themeMode = themeMode, reminderEnabled = reminders, savePhotosLocally = savePhotos)
+            repository.updateSettings(updated)
             preferences.setThemeMode(themeMode)
             preferences.setRemindersEnabled(reminders)
             preferences.setSavePhotosLocally(savePhotos)
+            if (reminders) TidyReminderManager.scheduleNext(getApplication(), updated) else TidyReminderManager.cancelAll(getApplication())
             refreshWidgets()
+        }
+    }
+
+    fun showTestReminder(): Boolean = TidyReminderManager.showTestReminder(getApplication(), state.value)
+
+    fun setMockPremium(planId: String) {
+        viewModelScope.launch {
+            val updated = when (planId) {
+                "free" -> state.value.settings.copy(premiumEntitlement = "free", premiumPlan = "", premiumExpiresAt = "")
+                "monthly" -> state.value.settings.copy(premiumEntitlement = "premium", premiumPlan = "monthly", premiumExpiresAt = LocalDate.now().plusMonths(1).toString())
+                "yearly" -> state.value.settings.copy(premiumEntitlement = "premium", premiumPlan = "yearly", premiumExpiresAt = LocalDate.now().plusYears(1).toString())
+                "lifetime" -> state.value.settings.copy(premiumEntitlement = "premium", premiumPlan = "lifetime", premiumExpiresAt = "lifetime")
+                else -> state.value.settings
+            }
+            repository.updateSettings(updated)
         }
     }
 
@@ -364,8 +463,10 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
                 )
             }
             if (applyStarterRoutine) repository.applyStarterRoutine(starterProfile)
-            repository.updateSettings(state.value.settings.copy(reminderEnabled = reminders))
+            val updatedSettings = state.value.settings.copy(reminderEnabled = reminders)
+            repository.updateSettings(updatedSettings)
             preferences.setRemindersEnabled(reminders)
+            if (reminders) TidyReminderManager.scheduleNext(getApplication(), updatedSettings) else TidyReminderManager.cancelAll(getApplication())
             preferences.setOnboardingComplete(true)
             replan()
         }
@@ -374,6 +475,27 @@ class TidyPilotViewModel(application: Application) : AndroidViewModel(applicatio
     fun applyStarterRoutine(profile: StarterRoutineProfile = StarterRoutineProfile()) {
         viewModelScope.launch {
             repository.applyStarterRoutine(profile)
+            replan()
+        }
+    }
+
+    fun saveHomeSetup(rooms: List<RoomEntity>, tasks: List<CleaningTaskEntity>) {
+        viewModelScope.launch {
+            val current = state.value
+            val existingRoomNames = current.rooms.map { it.name.trim().lowercase() }.toSet()
+            val roomNameById = (current.rooms + rooms).associate { it.id to it.name.trim().lowercase() }
+            val existingTaskKeys = current.tasks.map { "${roomNameById[it.roomId] ?: it.roomId}:${it.name.trim().lowercase()}" }.toMutableSet()
+            rooms
+                .filter { it.name.trim().lowercase() !in existingRoomNames }
+                .forEach { repository.saveRoom(it) }
+            tasks
+                .forEach { task ->
+                    val key = "${roomNameById[task.roomId] ?: task.roomId}:${task.name.trim().lowercase()}"
+                    if (key !in existingTaskKeys) {
+                        repository.saveTask(task)
+                        existingTaskKeys += key
+                    }
+                }
             replan()
         }
     }
@@ -450,6 +572,14 @@ private fun buildQuickCleanTasks(state: TidyPilotState, minutes: Int, energy: St
         }
     }
     return selected
+}
+
+private fun dollarsToCents(value: String): Int? {
+    val cleaned = value.trim().removePrefix("$")
+    val parts = cleaned.split(".")
+    val dollars = parts.getOrNull(0)?.toIntOrNull() ?: return null
+    val cents = parts.getOrNull(1)?.padEnd(2, '0')?.take(2)?.toIntOrNull() ?: 0
+    return dollars * 100 + cents
 }
 
 private fun quickCleanReason(minutes: Int, count: Int, energy: String, fullReset: Boolean): String = when {
